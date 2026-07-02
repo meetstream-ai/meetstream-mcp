@@ -1,0 +1,44 @@
+{
+  "name": "@meetstream/mcp",
+  "version": "0.1.0",
+  "description": "Official MeetStream MCP server — give Claude and any MCP client direct access to the MeetStream meeting-bot API (create bots, fetch transcripts, interact with live meetings).",
+  "type": "module",
+  "bin": {
+    "meetstream-mcp": "bin/meetstream-mcp.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "start": "node bin/meetstream-mcp.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18.17"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^3.25.0"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "meetstream",
+    "meeting-bot",
+    "transcription",
+    "zoom",
+    "google-meet",
+    "microsoft-teams",
+    "claude"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/meetstream-ai/meetstream-mcp.git"
+  },
+  "homepage": "https://docs.meetstream.ai",
+  "author": "MeetStream.ai <hello@meetstream.ai>",
+  "license": "MIT"
+}
