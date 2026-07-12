@@ -1,6 +1,6 @@
 {
   "name": "@meetstream/mcp",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Official MeetStream MCP server — give Claude and any MCP client direct access to the MeetStream meeting-bot API (create bots, fetch transcripts, interact with live meetings).",
   "type": "module",
   "bin": {
@@ -14,6 +14,7 @@
   ],
   "scripts": {
     "start": "node bin/meetstream-mcp.js",
+    "start:http": "node bin/meetstream-mcp-http.js",
     "test": "node --test"
   },
   "engines": {

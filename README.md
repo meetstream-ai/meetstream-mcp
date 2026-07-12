@@ -2,13 +2,14 @@
 
 **Give Claude — or any MCP-compatible client — direct access to the MeetStream meeting-bot API.** The server authenticates to MeetStream with your API key and exposes the full bot lifecycle (create, record, transcribe, summarize, interact live, manage calendar auto-join) as 19 callable tools.
 
-It runs **locally on your machine** as a standard [MCP](https://modelcontextprotocol.io) stdio server — there's nothing to deploy or host. Your MCP client (Claude Desktop, Claude Code, etc.) launches it as a subprocess on demand via `npx @meetstream/mcp`, talks to it over stdin/stdout, and the server calls the real MeetStream API on your behalf using your key.
+Two ways to run it:
+
+- **Local (stdio)** — the default, `npx @meetstream/mcp`. Your MCP client launches it as a subprocess; nothing to host.
+- **Remote (Streamable HTTP)** — `https://mcp.meetstream.ai/mcp`. A hosted, multi-tenant endpoint you can add by URL, no local install. Each request authenticates with its own API key via header (see [Remote server](#remote-server-streamable-http) below).
 
 ```
-┌───────────────┐   stdio (JSON-RPC)   ┌──────────────────┐   HTTPS + API key   ┌─────────────────┐
-│  Claude / MCP │ ───────────────────► │  @meetstream/mcp │ ──────────────────► │  api.meetstream  │
-│    client     │ ◄─────────────────── │  (this server)   │ ◄────────────────── │      .ai         │
-└───────────────┘                      └──────────────────┘                     └─────────────────┘
+Local:   Claude/MCP client ──stdio (subprocess)──► @meetstream/mcp ──HTTPS + API key──► api.meetstream.ai
+Remote:  Claude/MCP client ──HTTPS + your key───► mcp.meetstream.ai ──HTTPS + your key──► api.meetstream.ai
 ```
 
 ---
@@ -139,8 +140,35 @@ Every tool description and the `webhook_events_guide` bake in **live-verified gr
 
 | Env var | Required | Purpose |
 |---------|----------|---------|
-| `MEETSTREAM_API_KEY` | ✅ yes | Your API key — sent as `Authorization: Token <key>` on every request |
+| `MEETSTREAM_API_KEY` | ✅ yes (stdio mode) | Your API key — sent as `Authorization: Token <key>` on every request |
 | `MEETSTREAM_API_URL` | optional | Override the base URL (default `https://api.meetstream.ai/api/v1`) — useful for testing against a staging environment |
+
+---
+
+## Remote server (Streamable HTTP)
+
+`https://mcp.meetstream.ai/mcp` — a hosted, multi-tenant [Streamable HTTP](https://modelcontextprotocol.io) endpoint. No `npx`, no local Node, no per-machine install. Add it by URL:
+
+```json
+{
+  "mcpServers": {
+    "meetstream": {
+      "url": "https://mcp.meetstream.ai/mcp",
+      "headers": { "Authorization": "Bearer ms_YOUR_API_KEY" }
+    }
+  }
+}
+```
+
+**How auth works here is different from stdio mode:** this endpoint serves many different MeetStream accounts at once, so it holds **no API key of its own**. Every request must carry your key, either as `Authorization: Bearer <key>` or `X-MeetStream-Api-Key: <key>`. A request with no key gets a `401` with setup instructions instead of silently failing.
+
+The server is stateless — every request is independent, there's no session to keep alive, and it scales horizontally with zero shared state between requests.
+
+**Self-hosting it yourself?** The same code ships as a Docker image — see [`deploy/`](./deploy) for the full runbook (fresh isolated VM, nginx, Let's Encrypt, systemd) or just:
+```bash
+docker build -t meetstream-mcp .
+docker run -p 8080:8080 meetstream-mcp   # POST http://localhost:8080/mcp
+```
 
 ## Troubleshooting
 
@@ -151,6 +179,7 @@ Every tool description and the `webhook_events_guide` bake in **live-verified gr
 | Client shows "meetstream" server failed to start | Run `npx -y @meetstream/mcp` directly in a terminal — errors will print to stderr |
 | `get_transcript` returns `ready: false` | The meeting hasn't finished processing yet, or (for streaming providers) there is no post-call transcript — check `get_bot_status` first |
 | Calendar tools return empty/errors | No calendar is connected yet — connect one via `meetstream calendar connect` in the [CLI](https://github.com/meetstream-ai/meetstream-cli) first |
+| Remote server (`mcp.meetstream.ai`) returns 401 | You didn't send `Authorization: Bearer <key>` (or `X-MeetStream-Api-Key`) on the request — the remote server has no key of its own |
 
 ## Development
 

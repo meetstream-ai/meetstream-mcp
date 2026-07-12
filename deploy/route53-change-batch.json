@@ -1,0 +1,16 @@
+{
+  "Comment": "mcp.meetstream.ai -> MeetStream MCP server VM",
+  "Changes": [
+    {
+      "Action": "UPSERT",
+      "ResourceRecordSet": {
+        "Name": "mcp.meetstream.ai",
+        "Type": "A",
+        "TTL": 300,
+        "ResourceRecords": [
+          { "Value": "REPLACE_WITH_VM_EXTERNAL_IP" }
+        ]
+      }
+    }
+  ]
+}
