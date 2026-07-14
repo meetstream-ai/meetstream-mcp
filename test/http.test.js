@@ -93,6 +93,19 @@ test('POST /mcp accepts X-MeetStream-Api-Key as an alternative to Authorization'
   });
 });
 
+test('POST /mcp?key=... authenticates via query param (for connector-UI URLs)', async () => {
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/mcp?key=test_key_in_url`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 't', version: '0' } } }),
+    });
+    assert.equal(res.status, 200);
+    const body = await readMcpResponse(res);
+    assert.equal(body.result.serverInfo.name, 'meetstream');
+  });
+});
+
 test('GET /mcp (no session, stateless) returns 405', async () => {
   await withServer(async (base) => {
     const res = await fetch(`${base}/mcp`);

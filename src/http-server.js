@@ -18,6 +18,11 @@ function extractApiKey(req) {
   if (auth?.toLowerCase().startsWith('bearer ')) return auth.slice(7).trim();
   const custom = req.headers['x-meetstream-api-key'];
   if (custom) return Array.isArray(custom) ? custom[0] : custom;
+  // Query param (?key= or ?api_key=) — lets the key ride in the connector URL for MCP clients
+  // whose "add custom connector" UI can't attach an auth header (they'd otherwise try an OAuth
+  // sign-in flow this server doesn't implement). Sending the key here means no 401, so no sign-in.
+  const q = req.query?.key || req.query?.api_key;
+  if (q) return Array.isArray(q) ? q[0] : q;
   return FALLBACK_API_KEY;
 }
 
@@ -26,8 +31,9 @@ function unauthorized(res) {
     jsonrpc: '2.0',
     error: {
       code: -32001,
-      message: 'Missing MeetStream API key. Send it as "Authorization: Bearer <key>" or ' +
-        '"X-MeetStream-Api-Key: <key>". Create one at https://app.meetstream.ai/api-keys',
+      message: 'Missing MeetStream API key. Send it as "Authorization: Bearer <key>", ' +
+        '"X-MeetStream-Api-Key: <key>", or as a ?key=<key> query param on the URL. ' +
+        'Create one at https://app.meetstream.ai/api-keys',
     },
     id: null,
   });
