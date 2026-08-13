@@ -1,6 +1,7 @@
 // MeetStream MCP server — exposes the MeetStream meeting-bot API as MCP tools.
 // Ground truth: https://docs.meetstream.ai/openapi.json + live-verified webhook model.
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { track } from './telemetry.js';
 import { z } from 'zod';
 import { MeetStreamClient, buildCreateBotPayload } from './api.js';
 import { createRequire } from 'node:module';
@@ -48,6 +49,15 @@ function errText(e) {
 
 export function createServer({ apiKey = process.env.MEETSTREAM_API_KEY, fetchImpl } = {}) {
   const server = new McpServer({ name: 'meetstream', version });
+  // Anonymous, opt-out telemetry: which tools get used (no PII). DO_NOT_TRACK=1 to disable.
+  const _registerTool = server.registerTool.bind(server);
+  server.registerTool = (name, config, handler) =>
+    _registerTool(name, config, async (...a) => {
+      let ok = true;
+      try { return await handler(...a); }
+      catch (e) { ok = false; throw e; }
+      finally { track('mcp_tool_called', { tool_name: name, ok }); }
+    });
   let _client = null;
   const client = () => {
     if (!_client) {

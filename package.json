@@ -1,7 +1,7 @@
 {
   "name": "@meetstream/mcp",
-  "version": "0.2.1",
-  "description": "Official MeetStream MCP server — give Claude and any MCP client direct access to the MeetStream meeting-bot API (create bots, fetch transcripts, interact with live meetings).",
+  "version": "0.3.0",
+  "description": "Official MeetStream MCP server \u2014 give Claude and any MCP client direct access to the MeetStream meeting-bot API (create bots, fetch transcripts, interact with live meetings).",
   "type": "module",
   "bin": {
     "meetstream-mcp": "bin/meetstream-mcp.js"
@@ -22,7 +22,8 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "zod": "^3.25.0"
+    "zod": "^3.25.0",
+    "posthog-node": "^4.0.0"
   },
   "keywords": [
     "mcp",
