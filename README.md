@@ -193,3 +193,11 @@ npm test        # spawns the real stdio server and speaks JSON-RPC to it end-to-
 Prefer a terminal? See the [MeetStream CLI](https://github.com/meetstream-ai/meetstream-cli). Docs: [docs.meetstream.ai](https://docs.meetstream.ai) · API spec: [openapi.json](https://docs.meetstream.ai/openapi.json) · Migrating from Recall.ai: [@meetstream/migrate](https://github.com/meetstream-ai/recall-meetstream-migration-kit)
 
 MIT © MeetStream.ai
+
+## Telemetry
+
+This server sends **anonymous** usage events (which tools are called, remote vs local) to help us improve MeetStream. It never sends your API key, meeting URLs, transcripts, or any content. Disable it any time:
+
+```bash
+export MEETSTREAM_TELEMETRY=0   # or the standard DO_NOT_TRACK=1
+```

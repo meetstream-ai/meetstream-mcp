@@ -4,6 +4,7 @@
 // key via the Authorization header (or X-MeetStream-Api-Key), and a fresh MeetStreamClient +
 // McpServer instance is built per request — exactly the SDK's documented "stateless mode" pattern.
 import { createMcpExpressApp } from '@modelcontextprotocol/sdk/server/express.js';
+import { setTransport, track } from './telemetry.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { createServer } from './server.js';
 
@@ -74,6 +75,7 @@ app.delete('/mcp', (_req, res) => {
 
 export function startHttpServer() {
   return app.listen(PORT, HOST, () => {
+    setTransport('remote'); track('mcp_server_started');
     console.log(`meetstream-mcp (Streamable HTTP) listening on http://${HOST}:${PORT}/mcp`);
   });
 }
