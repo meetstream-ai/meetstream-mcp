@@ -118,13 +118,13 @@ Adding a tool means editing `src/server.js` (schema + handler) and `src/api.js` 
 
 | Variable | Default | Notes |
 |---|---|---|
-| `MEETSTREAM_API_KEY` | — | Required for real calls. Get one at https://app.meetstream.ai/api-key |
+| `MEETSTREAM_API_KEY` | - | Required for real calls. Get one at https://app.meetstream.ai/api-key |
 | `MEETSTREAM_API_URL` | `https://api.meetstream.ai/api/v1` | Point at staging here |
 | `PORT` | `3000` | HTTP transport only |
-| `HOST` | — | HTTP transport bind address |
-| `MCP_ALLOWED_HOSTS` | — | Comma-separated allowlist, DNS-rebinding protection |
+| `HOST` | - | HTTP transport bind address |
+| `MCP_ALLOWED_HOSTS` | - | Comma-separated allowlist, DNS-rebinding protection |
 | `MEETSTREAM_TELEMETRY` | on | Set `0`/`false` to disable |
-| `DO_NOT_TRACK` | — | Honoured, disables telemetry |
+| `DO_NOT_TRACK` | - | Honoured, disables telemetry |
 
 In HTTP mode the server is **multi-tenant and holds no key of its own**. Each request carries its own, via `Authorization: Bearer <key>`, `X-MeetStream-Api-Key: <key>`, or `?key=<key>`.
 
