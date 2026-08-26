@@ -13,7 +13,7 @@ claude mcp add --transport http meetstream https://mcp.meetstream.ai/mcp \
   --header "Authorization: Bearer $MEETSTREAM_API_KEY"
 ```
 
-Or install the plugin, which bundles the server plus skills for joining meetings, summarizing calls, MIA voice agents, webhooks, streaming, calendar automation and troubleshooting:
+Separately, the [MeetStream Claude plugin](https://github.com/meetstream-ai/claude-plugin) adds skills for notetakers, sales coaching, calendar automation and scaffolding. It ships **skills only** and does not include the MCP server, so the two are complementary rather than alternatives:
 
 ```sh
 /plugin marketplace add meetstream-ai/claude-plugin

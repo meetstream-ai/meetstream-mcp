@@ -17,7 +17,7 @@ claude mcp add --transport http meetstream https://mcp.meetstream.ai/mcp \
   --header "Authorization: Bearer $MEETSTREAM_API_KEY"
 ```
 
-Or install the plugin, which bundles the server plus skills:
+The [MeetStream Claude plugin](https://github.com/meetstream-ai/claude-plugin) is a separate, complementary install. It ships **skills only** and does not include the MCP server, so install both:
 
 ```sh
 /plugin marketplace add meetstream-ai/claude-plugin
