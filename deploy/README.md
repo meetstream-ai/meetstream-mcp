@@ -50,8 +50,8 @@ dig +short mcp.meetstream.ai
 
 # 4. Copy setup files onto the VM and run them
 gcloud compute scp 01-vm-setup.sh nginx-mcp.conf mcp-server:~/ \
-  --zone=us-central1-a --project=meetstream-mcp-prod
-gcloud compute ssh mcp-server --zone=us-central1-a --project=meetstream-mcp-prod \
+  --zone=us-central1-a --project=meetstream-mcp
+gcloud compute ssh mcp-server --zone=us-central1-a --project=meetstream-mcp \
   --command="chmod +x ~/01-vm-setup.sh && ~/01-vm-setup.sh"
 
 # 5. Verify
@@ -63,7 +63,7 @@ The GitHub Actions workflow (`.github/workflows/docker-publish.yml`) builds and 
 `ghcr.io/meetstream-ai/meetstream-mcp:latest` on every push to `main` — `01-vm-setup.sh` pulls
 that image, so redeploys after a code change are just:
 ```bash
-gcloud compute ssh mcp-server --zone=us-central1-a --project=meetstream-mcp-prod \
+gcloud compute ssh mcp-server --zone=us-central1-a --project=meetstream-mcp \
   --command="sudo docker pull ghcr.io/meetstream-ai/meetstream-mcp:latest && sudo docker rm -f meetstream-mcp && sudo docker run -d --name meetstream-mcp --restart=always -p 127.0.0.1:8080:8080 ghcr.io/meetstream-ai/meetstream-mcp:latest"
 ```
 
@@ -89,3 +89,41 @@ API key.
 
 `e2-small` (2 vCPU burst, 2GB RAM), 20GB pd-balanced disk, us-central1-a — roughly **$13–15/mo**,
 in line with the existing n8n/blog VMs on the same billing account.
+
+## Redeploying a new version
+
+The running container is built **on the VM** from this repo, not pulled from a
+registry. The CI-published image at `ghcr.io/meetstream-ai/meetstream-mcp:latest`
+is **private**, so `docker pull` returns `unauthorized` from the VM. Either make
+that package public in GitHub's package settings, or keep using the local build
+below (which is what production currently runs).
+
+```sh
+gcloud compute ssh mcp-server --zone=us-central1-a --project=meetstream-mcp
+
+# on the VM
+rm -rf ~/meetstream-mcp
+git clone --depth 1 https://github.com/meetstream-ai/meetstream-mcp.git ~/meetstream-mcp
+sudo docker build -t meetstream-mcp:vX.Y.Z ~/meetstream-mcp
+sudo docker run --rm meetstream-mcp:vX.Y.Z node -e 'console.log(require("/app/package.json").version)'
+
+# swap, keeping the old container for rollback
+sudo docker stop meetstream-mcp
+sudo docker rename meetstream-mcp meetstream-mcp-rollback
+sudo docker run -d --name meetstream-mcp --restart always \
+  -p 127.0.0.1:8080:8080 \
+  -e NODE_ENV=production -e PORT=8080 -e HOST=0.0.0.0 \
+  meetstream-mcp:vX.Y.Z
+```
+
+Verify from your laptop before walking away:
+
+```sh
+curl -s -X POST https://mcp.meetstream.ai/mcp \
+  -H "Authorization: Bearer $MEETSTREAM_API_KEY" \
+  -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"v","version":"1"}}}' \
+  | grep -o '"version":"[^"]*"'
+```
+
+**Rollback:** `sudo docker stop meetstream-mcp && sudo docker rm meetstream-mcp && sudo docker rename meetstream-mcp-rollback meetstream-mcp && sudo docker start meetstream-mcp`

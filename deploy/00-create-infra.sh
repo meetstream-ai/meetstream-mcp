@@ -9,7 +9,7 @@
 # Usage: ./00-create-infra.sh
 set -euo pipefail
 
-PROJECT_ID="${MCP_PROJECT_ID:-meetstream-mcp-prod}"
+PROJECT_ID="${MCP_PROJECT_ID:-meetstream-mcp}"
 BILLING_ACCOUNT="${MCP_BILLING_ACCOUNT:-01FD5E-E5BF3B-E3EB75}"   # Singapore Master Billing (existing MeetStream account)
 ZONE="${MCP_ZONE:-us-central1-a}"
 VM_NAME="${MCP_VM_NAME:-mcp-server}"

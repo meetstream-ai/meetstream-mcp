@@ -3,8 +3,8 @@
 # mcp.meetstream.ai with TLS. Idempotent — safe to re-run.
 #
 # Usage (from your laptop):
-#   gcloud compute scp deploy/01-vm-setup.sh deploy/nginx-mcp.conf mcp-server:~/ --zone=us-central1-a --project=meetstream-mcp-prod
-#   gcloud compute ssh mcp-server --zone=us-central1-a --project=meetstream-mcp-prod --command="chmod +x ~/01-vm-setup.sh && ~/01-vm-setup.sh"
+#   gcloud compute scp deploy/01-vm-setup.sh deploy/nginx-mcp.conf mcp-server:~/ --zone=us-central1-a --project=meetstream-mcp
+#   gcloud compute ssh mcp-server --zone=us-central1-a --project=meetstream-mcp --command="chmod +x ~/01-vm-setup.sh && ~/01-vm-setup.sh"
 #
 # Prereq: the mcp.meetstream.ai DNS A record must already point at this VM's IP
 # before running (certbot's HTTP-01 challenge needs it resolvable).
