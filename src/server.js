@@ -1,4 +1,4 @@
-// MeetStream MCP server — exposes the MeetStream meeting-bot API as MCP tools.
+// MeetStream MCP server - exposes the MeetStream meeting-bot API as MCP tools.
 // Ground truth: https://docs.meetstream.ai/openapi.json + live-verified webhook model.
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { track } from './telemetry.js';
@@ -11,34 +11,45 @@ const { version } = require('../package.json');
 
 const PROVIDERS = ['deepgram', 'assemblyai', 'sarvam', 'meetstream', 'jigsawstack', 'meeting_captions', 'deepgram_streaming', 'assemblyai_streaming'];
 
-const WEBHOOK_GUIDE = `MeetStream webhook model (LIVE-VERIFIED against production):
+const WEBHOOK_GUIDE = `MeetStream webhook model (checked against 4,139 captured production deliveries, June 2026):
 
-Envelope — events POST to your callback_url with the name under the "event" key:
-{ "event": "bot.inmeeting", "bot_id": "...", "bot_status": "InMeeting",
-  "message": "...", "status_code": 200, "custom_attributes": {...} }
-status_code: 200 success, 500 failure. Lifecycle events have NO timestamp; post-call events do.
+Envelope: events POST to your callback_url. Every delivery carries the name under the "event" key,
+and most also carry a "bot_event" key with the specific name. Every event carries a timestamp.
+{ "event": "bot.stopped", "bot_event": "bot.notallowed", "bot_id": "...", "bot_status": "NotAllowed",
+  "message": "Failed: Not admitted to meeting", "status_code": 500, "timestamp": "...",
+  "custom_attributes": {...} }
+status_code: 200 success, 500 failure.
 
-Lifecycle: bot.joining (may fire up to 3x) -> bot.in_waiting_room -> bot.inmeeting ->
-bot.recording -> bot.leaving -> bot.stopped (terminal, fires ONCE).
-TWO-LAYER: on bot.stopped, bot_status says WHY: Stopped (normal) | NotAllowed (lobby timeout) |
-Denied (host denied) | Error (crash). There are NOT separate kicked/denied/failed events.
-bot.error = NON-terminal streaming-provider upstream error (bot continues; no status_code).
+Lifecycle: bot.joining -> bot.in_waiting_room -> bot.inmeeting -> bot.recording -> bot.leaving
+-> ONE terminal delivery. On Zoom, bot.recording_permission_allowed / _denied can fire before bot.recording.
 
-Post-call: manifest.completed -> audio.processed -> transcription.processed (or
-transcription.failed, 500) -> video.processed (only if video_required) -> bot.done (200 or 500).
-STREAMING-ONLY transcription providers (deepgram_streaming, assemblyai_streaming,
-meeting_captions) never fire transcription.processed/failed or bot.done — their terminal
-event is audio.processed. Don't wait on bot.done for a streaming bot.
+TERMINAL, two layers: every ending arrives once with event = "bot.stopped". Read bot_event for why:
+  bot.stopped     clean exit                   status_code 200   bot_status Stopped
+  bot.kicked      removed by a participant     status_code 200   bot_status Stopped
+  bot.notallowed  lobby / waiting-room timeout status_code 500   bot_status NotAllowed
+  bot.denied      host refused entry           status_code 500   bot_status Denied
+  bot.failed      unexpected error             usually 500       bot_status FAILED, Failed or ERROR
+Branch on bot_event, not bot_status: a kick and a clean exit both report bot_status "Stopped",
+and bot_status casing is not consistent.
+
+Post-call: manifest.completed -> audio.processed -> transcription.processed (or transcription.failed
+with 500, or transcription.skipped) -> video.processed (only when video was recorded) -> bot.done
+(200: the pipeline finished; check the individual artifact events for success).
+STREAMING-ONLY providers (deepgram_streaming, assemblyai_streaming, jigsawstack_streaming,
+meetstream_streaming, meeting_captions) produce no post-call transcript, so no
+transcription.processed. bot.done still fires. A post-call transcript fetch for them returns 202
+indefinitely, so cap any polling.
+
+Other events you may receive: bot.scheduled, bot.uploading, bot.transcriptionready, audio.skipped,
+manifest.skipped, participant_events.join and participant_events.leave (no status_code), and
+data_deletion (no custom_attributes).
 
 transcript_id is NOT in any webhook. Resolve it via GET /bots/{id}/detail
-(bot_details.transcript_id), the create_bot response, or GET /bots/{id}/transcriptions —
-the get_transcript tool does this automatically.
+(bot_details.transcript_id), the create_bot response, or GET /bots/{id}/transcriptions.
+The get_transcript tool does this automatically.
 
-bot_status values: Joining, InWaitingRoom, InMeeting, Recording, Leaving, Stopped,
-NotAllowed, Denied, Error, Done.
-
-Handler rules: return HTTP 2xx fast (webhooks are NOT retried on non-2xx); process async;
-recording_permission_denied_timeout minimum is 60 seconds (Zoom only).`;
+Handler rules: return HTTP 2xx fast and process async; de-duplicate on
+{bot_id, event, bot_event, timestamp}.`;
 
 function json(data) {
   return { content: [{ type: 'text', text: typeof data === 'string' ? data : JSON.stringify(data, null, 2) }] };
@@ -84,7 +95,7 @@ export function createServer({ apiKey = process.env.MEETSTREAM_API_KEY, fetchImp
       join_at: z.string().optional().describe('Schedule a future join, ISO 8601 e.g. 2026-07-02T15:00:00Z'),
       bot_message: z.string().optional().describe('Chat message posted when the bot joins'),
       bot_image_url: z.string().optional().describe('PUBLIC image URL for the bot avatar (raw base64 is rejected)'),
-      retention_hours: z.number().int().optional().describe('Data retention window in hours (API default 24)'),
+      retention_hours: z.number().int().optional().describe('Data retention window in hours (default 720, i.e. 30 days)'),
       separate_audio_streams: z.boolean().optional().describe('Capture per-participant audio'),
       separate_video_streams: z.boolean().optional().describe('Capture per-participant video'),
       agent_config_id: z.string().optional().describe('Attach a MIA conversational AI agent'),
@@ -141,8 +152,8 @@ export function createServer({ apiKey = process.env.MEETSTREAM_API_KEY, fetchImp
 
   server.registerTool('delete_bot_data', {
     title: 'Delete bot data (permanent)',
-    description: 'PERMANENTLY delete a bot\'s audio, video, and transcripts. Irreversible — fires a data_deletion webhook. Only call when the user explicitly asks to delete data.',
-    inputSchema: { bot_id: z.string(), confirm: z.literal(true).describe('Must be true — confirms the user explicitly asked for permanent deletion') },
+    description: 'PERMANENTLY delete a bot\'s audio, video, and transcripts. Irreversible - fires a data_deletion webhook. Only call when the user explicitly asks to delete data.',
+    inputSchema: { bot_id: z.string(), confirm: z.literal(true).describe('Must be true - confirms the user explicitly asked for permanent deletion') },
     annotations: { destructiveHint: true },
   }, run(async (a) => (await client().deleteBotData(a.bot_id)).data));
 
@@ -243,7 +254,7 @@ export function createServer({ apiKey = process.env.MEETSTREAM_API_KEY, fetchImp
   // ── Calendar ──────────────────────────────────────────────────────────
   server.registerTool('list_calendar_events', {
     title: 'List calendar events',
-    description: 'Upcoming events from connected Google Calendars (connect via POST /calendar/create_calendar with google_client_id/secret/refresh_token — needs OAuth credentials, usually done once from the dashboard or CLI).',
+    description: 'Upcoming events from connected Google Calendars (connect via POST /calendar/create_calendar with google_client_id/secret/refresh_token - needs OAuth credentials, usually done once from the dashboard or CLI).',
     inputSchema: {},
     annotations: { readOnlyHint: true },
   }, run(async () => (await client().calendarEvents()).data));
@@ -258,8 +269,8 @@ export function createServer({ apiKey = process.env.MEETSTREAM_API_KEY, fetchImp
 
   // ── Reference ─────────────────────────────────────────────────────────
   server.registerTool('webhook_events_guide', {
-    title: 'Webhook events guide (live-verified)',
-    description: 'Authoritative reference for MeetStream webhook events — envelope shape, full event list, two-layer bot.stopped model, streaming-provider caveats. Use this before writing any webhook handler.',
+    title: 'Webhook events guide',
+    description: 'Reference for MeetStream webhook events: envelope shape (event and bot_event), the two-layer bot.stopped terminal model, status codes, and streaming-provider caveats. Use this before writing any webhook handler.',
     inputSchema: {},
     annotations: { readOnlyHint: true },
   }, async () => json(WEBHOOK_GUIDE));

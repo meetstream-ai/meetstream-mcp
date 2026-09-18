@@ -1,4 +1,4 @@
-// MeetStream API client — mirrors the live OpenAPI spec (https://docs.meetstream.ai/openapi.json)
+// MeetStream API client - mirrors the live OpenAPI spec (https://docs.meetstream.ai/openapi.json)
 // Auth: `Authorization: Token <key>` · Base: https://api.meetstream.ai/api/v1
 const BASE_URL = process.env.MEETSTREAM_API_URL || 'https://api.meetstream.ai/api/v1';
 
@@ -37,7 +37,7 @@ export class MeetStreamClient {
     const text = await res.text();
     let data;
     try { data = text ? JSON.parse(text) : null; } catch { data = text; }
-    // 507 = idempotent replay of an existing bot — a success, not an error.
+    // 507 = idempotent replay of an existing bot - a success, not an error.
     if (!res.ok && res.status !== 507) {
       const detail = typeof data === 'object' && data !== null
         ? (data.detail || data.message || data.error || JSON.stringify(data))
@@ -89,7 +89,7 @@ export class MeetStreamClient {
   }
 
   /**
-   * Resolve a bot's transcript_id. transcript_id is NOT delivered in webhooks —
+   * Resolve a bot's transcript_id. transcript_id is NOT delivered in webhooks -
    * canonical sources: GET /bots/{id}/detail (bot_details.transcript_id),
    * the create_bot response, or GET /bots/{id}/transcriptions.
    */
@@ -181,7 +181,6 @@ export function buildCreateBotPayload(opts) {
   if (opts.agentConfigId) payload.agent_config_id = opts.agentConfigId;
   if (opts.separateAudio) payload.audio_separate_streams = true;
   if (opts.separateVideo) payload.video_separate_streams = true;
-  if (opts.zoomObf) payload.zoom = { use_zoom_obf: true };
   if (opts.liveTranscriptWebhook) payload.live_transcription_required = { webhook_url: opts.liveTranscriptWebhook };
   if (opts.liveAudioWs) payload.live_audio_required = { websocket_url: opts.liveAudioWs };
   if (opts.liveVideoWs) payload.live_video_required = { websocket_url: opts.liveVideoWs };
