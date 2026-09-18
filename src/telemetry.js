@@ -1,6 +1,6 @@
 /**
  * Anonymous, opt-out usage telemetry (PostHog).
- * Captures ONLY tool/command names + counts — never API keys, meeting URLs,
+ * Captures ONLY tool/command names + counts - never API keys, meeting URLs,
  * transcripts, or any content. Disable with DO_NOT_TRACK=1 or MEETSTREAM_TELEMETRY=0.
  * The project key is a PostHog *public* key.
  */
