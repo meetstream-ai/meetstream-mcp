@@ -47,10 +47,12 @@ app.get('/', (_req, res) => {
 });
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
-// Also served at "/": Claude's connector probes the origin root before /mcp, and a 404 there
-// sends it into an OAuth discovery flow this server does not implement yet.
+// Also served at "/" when the request carries a key, for clients configured with the bare origin.
 app.post(['/mcp', '/'], async (req, res) => {
   const apiKey = extractApiKey(req);
+  // Keep a keyless POST / as a plain 404: Claude treats it as "not the endpoint" and moves on
+  // to /mcp, whereas a 401 at the root would push it into OAuth discovery.
+  if (!apiKey && req.path === '/') return res.status(404).json({ error: 'Not found. The MCP endpoint is /mcp.' });
   if (!apiKey) return unauthorized(res);
 
   const server = createServer({ apiKey });
