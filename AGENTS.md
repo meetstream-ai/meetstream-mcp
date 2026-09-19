@@ -59,9 +59,12 @@ Customize -> Connectors -> + -> Add custom connector. Name it `meetstream` and s
 
 ### Codex
 
-```sh
-codex mcp add meetstream --url https://mcp.meetstream.ai/mcp \
-  --header "Authorization: Bearer $MEETSTREAM_API_KEY"
+Add to `~/.codex/config.toml` (the key is read from your environment):
+
+```toml
+[mcp_servers.meetstream]
+url = "https://mcp.meetstream.ai/mcp"
+bearer_token_env_var = "MEETSTREAM_API_KEY"
 ```
 
 ### Run it locally instead
