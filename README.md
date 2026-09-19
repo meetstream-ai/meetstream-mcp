@@ -84,7 +84,7 @@ Ask your client something like *"list my meetstream bots"* - if it returns data 
 ### Bot lifecycle
 | Tool | What it does |
 |------|---------------|
-| `create_bot` | Sends (or schedules, via `join_at`) a bot to a Zoom / Google Meet / Microsoft Teams meeting. Configurable: transcription provider + language, `callback_url` for webhooks, video recording, per-participant audio/video streams, MIA conversational agent, custom attributes, retention window, idempotency key (safe retries - a repeat call returns the original bot, never a duplicate). Returns `bot_id` and `transcript_id` (when a provider is set). |
+| `create_bot` | Sends (or schedules, via `join_at`) a bot to a Zoom / Google Meet / Microsoft Teams meeting. Configurable: transcription provider + language, `callback_url` for webhooks, video recording, per-participant audio/video streams, MIA conversational agent, signed-in joins (`google_login_domain` / `teams_login_domain`, optional `sign_in_email` / `strict_email`, for domains already registered on your account), authenticated Zoom joins (`zoom_zak_url` / `zoom_obf_url`), custom attributes, retention window, idempotency key (safe retries - a repeat call returns the original bot, never a duplicate). Returns `bot_id` and `transcript_id` (when a provider is set). |
 | `list_bots` | Lists every bot on the account (paginated). |
 | `get_bot_status` | Current lifecycle status - one of `Joining`, `InWaitingRoom`, `InMeeting`, `Recording`, `Leaving`, `Stopped`, `NotAllowed`, `Denied`, `Error`, `Done`. |
 | `get_bot_detail` | Full session metadata: platform, timings, status timeline, the canonical `transcript_id`, `caption_file` (for the `meeting_captions` provider), and the original request payload. |
@@ -122,7 +122,7 @@ Ask your client something like *"list my meetstream bots"* - if it returns data 
 ### Reference
 | Tool | What it does |
 |------|---------------|
-| `webhook_events_guide` | Returns the live-verified webhook reference - envelope shape, the full event list, the two-layer `bot.stopped`/`bot_status` model, and streaming-provider caveats. **Have your model call this before it writes any webhook handler code** - the public docs page has known inaccuracies this tool corrects. |
+| `webhook_events_guide` | Returns the webhook reference - envelope shape (`event` and `bot_event`), the two-layer `bot.stopped` terminal model, status codes, and streaming-provider caveats, checked against captured production deliveries. **Have your model call this before it writes any webhook handler code.** |
 
 ---
 
@@ -130,9 +130,9 @@ Ask your client something like *"list my meetstream bots"* - if it returns data 
 
 Every tool description and the `webhook_events_guide` bake in **live-verified ground truth**, confirmed against real production bot runs, that the public API docs currently get wrong:
 
-- **Webhook envelope key is `event`**, not `bot_event` as the docs claim.
-- **`bot.stopped` is two-layer**: it fires exactly once, and `bot_status` (`Stopped`/`NotAllowed`/`Denied`/`Error`) tells you why - there's no separate `bot.kicked`/`bot.denied` event.
-- **Streaming-only transcription providers** (`deepgram_streaming`, `assemblyai_streaming`, `meeting_captions`) never fire `transcription.processed` or `bot.done` - their terminal event is `audio.processed`. A handler waiting on `bot.done` for a streaming bot will hang forever.
+- **Every delivery carries `event`**, and most also carry `bot_event` with the specific name. Read `event` to route, `bot_event` for detail.
+- **Terminals are two-layer**: every ending arrives once with `event: "bot.stopped"`, and `bot_event` says why (`bot.stopped`, `bot.kicked`, `bot.notallowed`, `bot.denied`, `bot.failed`). Lobby timeouts, denials and failures carry `status_code: 500`. Branch on `bot_event`, not `bot_status` - a kick and a clean exit both report `Stopped`.
+- **Streaming-only transcription providers** (`deepgram_streaming`, `assemblyai_streaming`, `jigsawstack_streaming`, `meetstream_streaming`, `meeting_captions`) produce no post-call transcript, so `transcription.processed` never fires. `bot.done` still does. A post-call transcript fetch for them returns `202` indefinitely, so cap your polling.
 - **`transcript_id` is never in a webhook payload** - `get_transcript` resolves it for you automatically instead of making the model guess.
 - Safe defaults everywhere: `automatic_leave` timeouts on every `create_bot` call, and `recording_permission_denied_timeout` floored at 60 (the API rejects lower values with a 400).
 

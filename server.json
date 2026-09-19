@@ -3,7 +3,7 @@
   "name": "io.github.meetstream-ai/meetstream-mcp",
   "title": "MeetStream",
   "description": "Meeting bots for Zoom, Google Meet and Teams: record, transcribe, summarize, run voice agents.",
-  "version": "0.3.0",
+  "version": "0.3.2",
   "websiteUrl": "https://docs.meetstream.ai/build-with-ai/meetstream-mcp-server",
   "repository": {
     "url": "https://github.com/meetstream-ai/meetstream-mcp",

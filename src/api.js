@@ -1,4 +1,4 @@
-// MeetStream API client — mirrors the live OpenAPI spec (https://docs.meetstream.ai/openapi.json)
+// MeetStream API client - mirrors the live OpenAPI spec (https://docs.meetstream.ai/openapi.json)
 // Auth: `Authorization: Token <key>` · Base: https://api.meetstream.ai/api/v1
 const BASE_URL = process.env.MEETSTREAM_API_URL || 'https://api.meetstream.ai/api/v1';
 
@@ -37,7 +37,7 @@ export class MeetStreamClient {
     const text = await res.text();
     let data;
     try { data = text ? JSON.parse(text) : null; } catch { data = text; }
-    // 507 = idempotent replay of an existing bot — a success, not an error.
+    // 507 = idempotent replay of an existing bot - a success, not an error.
     if (!res.ok && res.status !== 507) {
       const detail = typeof data === 'object' && data !== null
         ? (data.detail || data.message || data.error || JSON.stringify(data))
@@ -89,7 +89,7 @@ export class MeetStreamClient {
   }
 
   /**
-   * Resolve a bot's transcript_id. transcript_id is NOT delivered in webhooks —
+   * Resolve a bot's transcript_id. transcript_id is NOT delivered in webhooks -
    * canonical sources: GET /bots/{id}/detail (bot_details.transcript_id),
    * the create_bot response, or GET /bots/{id}/transcriptions.
    */
@@ -181,12 +181,33 @@ export function buildCreateBotPayload(opts) {
   if (opts.agentConfigId) payload.agent_config_id = opts.agentConfigId;
   if (opts.separateAudio) payload.audio_separate_streams = true;
   if (opts.separateVideo) payload.video_separate_streams = true;
-  if (opts.zoomObf) payload.zoom = { use_zoom_obf: true };
   if (opts.liveTranscriptWebhook) payload.live_transcription_required = { webhook_url: opts.liveTranscriptWebhook };
   if (opts.liveAudioWs) payload.live_audio_required = { websocket_url: opts.liveAudioWs };
   if (opts.liveVideoWs) payload.live_video_required = { websocket_url: opts.liveVideoWs };
   if (opts.socketWs) payload.socket_connection_url = { websocket_url: opts.socketWs };
   if (opts.attrs && Object.keys(opts.attrs).length) payload.custom_attributes = opts.attrs;
+
+  // Signed-in joins. The domain must already be registered on the account
+  // (google-login-domains / teams-login-domains); the API returns 400 otherwise.
+  if (opts.googleLoginDomain && opts.teamsLoginDomain) {
+    throw new Error('Pass only one of google_login_domain or teams_login_domain.');
+  }
+  if ((opts.signInEmail || opts.strictEmail !== undefined) && !opts.googleLoginDomain && !opts.teamsLoginDomain) {
+    throw new Error('sign_in_email and strict_email need google_login_domain or teams_login_domain.');
+  }
+  const signIn = (domainKey, domain) => ({
+    login_required: true,
+    [domainKey]: domain,
+    ...(opts.signInEmail ? { sign_in_email: opts.signInEmail } : {}),
+    ...(opts.strictEmail !== undefined ? { strict_email: Boolean(opts.strictEmail) } : {}),
+  });
+  if (opts.googleLoginDomain) payload.google_meet = signIn('google_login_domain', opts.googleLoginDomain);
+  if (opts.teamsLoginDomain) payload.teams = signIn('teams_login_domain', opts.teamsLoginDomain);
+
+  // Authenticated Zoom joins: HTTPS endpoints on the caller's server that return a fresh token.
+  if (opts.zoomZakUrl && opts.zoomObfUrl) throw new Error('Pass only one of zoom_zak_url or zoom_obf_url.');
+  if (opts.zoomZakUrl) payload.zoom = { zak_url: opts.zoomZakUrl };
+  if (opts.zoomObfUrl) payload.zoom = { obf_url: opts.zoomObfUrl };
 
   if (opts.transcript) {
     const provider = {};

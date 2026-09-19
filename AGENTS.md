@@ -53,15 +53,18 @@ Add to `~/.codeium/windsurf/mcp_config.json`:
 }
 ```
 
-### Claude Desktop
+### Claude (desktop and web)
 
-Settings → Connectors → Add custom connector. Name it `meetstream`, URL `https://mcp.meetstream.ai/mcp`.
+Customize -> Connectors -> + -> Add custom connector. Name it `meetstream` and set the URL to `https://mcp.meetstream.ai/mcp?key=YOUR_MEETSTREAM_API_KEY`, leaving the OAuth fields blank. Claude's custom connectors cannot send a custom auth header, so the key goes in the URL; give each person their own key so it can be revoked individually.
 
 ### Codex
 
-```sh
-codex mcp add meetstream --url https://mcp.meetstream.ai/mcp \
-  --header "Authorization: Bearer $MEETSTREAM_API_KEY"
+Add to `~/.codex/config.toml` (the key is read from your environment):
+
+```toml
+[mcp_servers.meetstream]
+url = "https://mcp.meetstream.ai/mcp"
+bearer_token_env_var = "MEETSTREAM_API_KEY"
 ```
 
 ### Run it locally instead
@@ -133,11 +136,11 @@ In HTTP mode the server is **multi-tenant and holds no key of its own**. Each re
 These are live-verified. Do not "fix" code that follows them.
 
 - **Auth differs by surface.** The REST API at `api.meetstream.ai` uses `Authorization: Token <key>`. This MCP server at `mcp.meetstream.ai` uses `Authorization: Bearer <key>`. Sending `Token` to the MCP returns 401.
-- The webhook envelope key is **`event`**, not `bot_event`.
-- **`bot.stopped` is the single terminal event** and always carries `status_code: 200`. The reason lives in `bot_status`: `Stopped`, `NotAllowed` (waiting-room timeout), `Denied` (host refused), `Error`.
-- `bot.error` is **non-terminal** - the bot keeps running.
-- **Streaming-only providers never emit `bot.done`.** They end at `audio.processed`, and a post-call transcript fetch returns `202` forever.
-- Transcripts are fetched by **`transcript_id`**, not `bot_id`, and segments use **`transcript`**, not `text`.
+- Every webhook carries the event name under **`event`**, and most also carry **`bot_event`** with the specific name.
+- **Terminals are two-layer.** Every ending arrives once with `event: "bot.stopped"`; `bot_event` says why (`bot.stopped`, `bot.kicked`, `bot.notallowed`, `bot.denied`, `bot.failed`). Lobby timeouts, denials and failures carry `status_code: 500`, clean exits and kicks `200`. Branch on `bot_event`: a kick and a clean exit both report `bot_status: "Stopped"`.
+- Every event carries a `timestamp`.
+- **Streaming-only providers produce no post-call transcript**: no `transcription.processed`, though `bot.done` still fires. A post-call transcript fetch for them returns `202` indefinitely, so any polling loop needs a cap.
+- Over REST, transcripts are fetched by **`transcript_id`**, not `bot_id`. The MCP `get_transcript` tool is the exception: it takes `bot_id` and resolves the `transcript_id` itself. Either way, segments use **`transcript`**, not `text`.
 - **`202` and `507` are not errors.** 202 means poll again with a cap; 507 means an idempotent retry replayed and is a success.
 - The bot field is **`meeting_link`**, not `meeting_url`.
 - `in_call_recording_timeout` has a hard floor of **600 seconds**; below it the API returns 400.
