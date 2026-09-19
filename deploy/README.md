@@ -126,3 +126,13 @@ curl -s -X POST https://mcp.meetstream.ai/mcp \
 ```
 
 **Rollback:** `sudo docker stop meetstream-mcp && sudo docker rm meetstream-mcp && sudo docker rename meetstream-mcp-rollback meetstream-mcp && sudo docker start meetstream-mcp`
+
+## Keys in logs
+
+Claude's custom connectors can only pass the API key as `?key=`. nginx's default access log records the full request line, query string included, so `nginx-mcp.conf` defines a `mcp_noquery` log format that logs the path only. On an existing VM, apply it by hand, because certbot has already rewritten the live site file:
+
+1. Add the `log_format mcp_noquery ...` line above the `server {` blocks in `/etc/nginx/sites-available/mcp.meetstream.ai`, and `access_log /var/log/nginx/mcp.access.log mcp_noquery;` inside each `server` block.
+2. `sudo nginx -t && sudo systemctl reload nginx`
+3. Purge the logs written before the change, which contain keys: `sudo truncate -s 0 /var/log/nginx/access.log*` and remove the rotated `.gz` files.
+
+nginx's error log can also quote the request line when an upstream error occurs. Keep it at the default `error` level and rotate it.
