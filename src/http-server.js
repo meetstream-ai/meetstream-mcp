@@ -47,7 +47,9 @@ app.get('/', (_req, res) => {
 });
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
-app.post('/mcp', async (req, res) => {
+// Also served at "/": Claude's connector probes the origin root before /mcp, and a 404 there
+// sends it into an OAuth discovery flow this server does not implement yet.
+app.post(['/mcp', '/'], async (req, res) => {
   const apiKey = extractApiKey(req);
   if (!apiKey) return unauthorized(res);
 
