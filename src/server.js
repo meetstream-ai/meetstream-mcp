@@ -62,8 +62,9 @@ export function createServer({ apiKey = process.env.MEETSTREAM_API_KEY, fetchImp
   const server = new McpServer({ name: 'meetstream', version });
   // Anonymous, opt-out telemetry: which tools get used (no PII). DO_NOT_TRACK=1 to disable.
   const _registerTool = server.registerTool.bind(server);
+  // Mirror each tool's title into annotations.title, which the Claude connectors directory reads.
   server.registerTool = (name, config, handler) =>
-    _registerTool(name, config, async (...a) => {
+    _registerTool(name, { ...config, annotations: { title: config.title, ...config.annotations } }, async (...a) => {
       let ok = true;
       try { return await handler(...a); }
       catch (e) { ok = false; throw e; }
