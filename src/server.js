@@ -89,9 +89,9 @@ export function createServer({ apiKey = process.env.MEETSTREAM_API_KEY, fetchImp
       meeting_link: z.string().describe('Full meeting URL (Zoom, Google Meet, or Teams)'),
       bot_name: z.string().optional().describe('Display name in the meeting (default "MeetStream Bot")'),
       record_video: z.boolean().optional().describe('Record video too (default false = audio only)'),
-      transcription_provider: z.enum(PROVIDERS).optional().describe('Post-call: deepgram (default choice), assemblyai, sarvam (Indic), meetstream, jigsawstack, meeting_captions (native). Real-time: deepgram_streaming, assemblyai_streaming. NOTE: streaming providers never fire transcription.processed/bot.done webhooks.'),
+      transcription_provider: z.enum(PROVIDERS).optional().describe('Post-call: deepgram (default choice), assemblyai, sarvam (Indic), meetstream, jigsawstack, meeting_captions (native). Real-time: deepgram_streaming, assemblyai_streaming. Streaming providers produce no post-call transcript (no transcription.processed webhook).'),
       language: z.string().optional().describe('Language in the provider\'s format (deepgram "en", assemblyai "en_us", sarvam "en-IN")'),
-      callback_url: z.string().optional().describe('HTTPS webhook for lifecycle events (events arrive under the "event" key)'),
+      callback_url: z.string().optional().describe('HTTPS webhook URL for lifecycle events'),
       join_at: z.string().optional().describe('Schedule a future join, ISO 8601 e.g. 2026-07-02T15:00:00Z'),
       bot_message: z.string().optional().describe('Chat message posted when the bot joins'),
       bot_image_url: z.string().optional().describe('PUBLIC image URL for the bot avatar (raw base64 is rejected)'),
@@ -103,6 +103,7 @@ export function createServer({ apiKey = process.env.MEETSTREAM_API_KEY, fetchImp
       custom_attributes: z.record(z.string()).optional().describe('String key/values echoed back in every webhook'),
       idempotency_key: z.string().optional().describe('UUID for safe retries (a retry returns the original bot, HTTP 507, no double charge)'),
     },
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
   }, run(async (a) => {
     const payload = buildCreateBotPayload({
       meetingLink: a.meeting_link, name: a.bot_name, video: a.record_video,
@@ -146,21 +147,22 @@ export function createServer({ apiKey = process.env.MEETSTREAM_API_KEY, fetchImp
 
   server.registerTool('remove_bot', {
     title: 'Remove bot from meeting',
-    description: 'Make the bot leave an active meeting now. Recorded data is KEPT (use delete_bot_data to erase).',
+    description: 'Make the bot leave an active meeting now. Recorded data is kept.',
     inputSchema: { bot_id: z.string() },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
   }, run(async (a) => (await client().removeBot(a.bot_id)).data));
 
   server.registerTool('delete_bot_data', {
     title: 'Delete bot data (permanent)',
-    description: 'PERMANENTLY delete a bot\'s audio, video, and transcripts. Irreversible - fires a data_deletion webhook. Only call when the user explicitly asks to delete data.',
-    inputSchema: { bot_id: z.string(), confirm: z.literal(true).describe('Must be true - confirms the user explicitly asked for permanent deletion') },
-    annotations: { destructiveHint: true },
+    description: 'Permanently delete a bot\'s audio, video and transcripts. Irreversible. Fires a data_deletion webhook.',
+    inputSchema: { bot_id: z.string(), confirm: z.literal(true).describe('Must be true to perform the permanent deletion') },
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
   }, run(async (a) => (await client().deleteBotData(a.bot_id)).data));
 
   // ── Transcripts ───────────────────────────────────────────────────────
   server.registerTool('get_transcript', {
     title: 'Get transcript',
-    description: 'Fetch a bot\'s transcript by bot_id. Resolves transcript_id automatically (it is NOT in webhooks) via /detail → /transcriptions. Set wait=true to poll until ready (after transcription.processed fires). Segments have `speaker` and `transcript` fields.',
+    description: 'Fetch a bot\'s transcript by bot_id. Resolves transcript_id automatically (it is NOT in webhooks) via /detail → /transcriptions. With wait=true, polls until the transcript is ready or timeout_seconds passes. Segments have `speaker` and `transcript` fields.',
     inputSchema: {
       bot_id: z.string(),
       wait: z.boolean().optional().describe('Poll until the transcript is ready (up to timeout_seconds)'),
@@ -195,6 +197,7 @@ export function createServer({ apiKey = process.env.MEETSTREAM_API_KEY, fetchImp
       language: z.string().optional(),
       callback_url: z.string().optional().describe('Webhook to notify when done'),
     },
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
   }, run(async (a) => {
     const p = {};
     if (a.provider === 'deepgram') p.deepgram = { model: 'nova-3', language: a.language || 'en' };
@@ -243,18 +246,20 @@ export function createServer({ apiKey = process.env.MEETSTREAM_API_KEY, fetchImp
     title: 'Send chat message into the meeting',
     description: 'Post a chat message into the live meeting through the bot.',
     inputSchema: { bot_id: z.string(), message: z.string() },
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
   }, run(async (a) => (await client().sendMessage(a.bot_id, a.message)).data));
 
   server.registerTool('send_image', {
     title: 'Show an image in the meeting',
     description: 'Display an image/GIF as the bot\'s video frame. img_url must be PUBLIC.',
     inputSchema: { bot_id: z.string(), img_url: z.string(), display_duration_seconds: z.number().int().optional() },
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
   }, run(async (a) => (await client().sendImage(a.bot_id, a.img_url, a.display_duration_seconds)).data));
 
   // ── Calendar ──────────────────────────────────────────────────────────
   server.registerTool('list_calendar_events', {
     title: 'List calendar events',
-    description: 'Upcoming events from connected Google Calendars (connect via POST /calendar/create_calendar with google_client_id/secret/refresh_token - needs OAuth credentials, usually done once from the dashboard or CLI).',
+    description: 'Upcoming events from the Google Calendars connected to this MeetStream account.',
     inputSchema: {},
     annotations: { readOnlyHint: true },
   }, run(async () => (await client().calendarEvents()).data));
@@ -263,6 +268,7 @@ export function createServer({ apiKey = process.env.MEETSTREAM_API_KEY, fetchImp
     title: 'Schedule / unschedule a calendar bot',
     description: 'action=schedule sends a bot to a specific calendar event; action=unschedule removes it.',
     inputSchema: { event_id: z.string(), action: z.enum(['schedule', 'unschedule']).default('schedule') },
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
   }, run(async (a) => (a.action === 'schedule'
     ? (await client().scheduleEvent(a.event_id)).data
     : (await client().unscheduleEvent(a.event_id)).data)));
@@ -270,7 +276,7 @@ export function createServer({ apiKey = process.env.MEETSTREAM_API_KEY, fetchImp
   // ── Reference ─────────────────────────────────────────────────────────
   server.registerTool('webhook_events_guide', {
     title: 'Webhook events guide',
-    description: 'Reference for MeetStream webhook events: envelope shape (event and bot_event), the two-layer bot.stopped terminal model, status codes, and streaming-provider caveats. Use this before writing any webhook handler.',
+    description: 'Reference for MeetStream webhook events: envelope shape (event and bot_event), the two-layer bot.stopped terminal model, status codes, and streaming-provider caveats.',
     inputSchema: {},
     annotations: { readOnlyHint: true },
   }, async () => json(WEBHOOK_GUIDE));
