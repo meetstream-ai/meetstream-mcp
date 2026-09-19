@@ -103,6 +103,12 @@ export function createServer({ apiKey = process.env.MEETSTREAM_API_KEY, fetchImp
       live_transcript_webhook_url: z.string().optional().describe('Webhook URL for live transcript chunks'),
       custom_attributes: z.record(z.string()).optional().describe('String key/values echoed back in every webhook'),
       idempotency_key: z.string().optional().describe('UUID for safe retries (a retry returns the original bot, HTTP 507, no double charge)'),
+      google_login_domain: z.string().optional().describe('Google Meet signed-in join: a Google Workspace domain already registered for signed-in bots on this account'),
+      teams_login_domain: z.string().optional().describe('Microsoft Teams signed-in join: a domain already registered for signed-in Teams bots on this account. The bot uses that Microsoft account\'s name and picture, and each account runs one bot at a time'),
+      sign_in_email: z.string().optional().describe('With google_login_domain or teams_login_domain: pin the join to one registered account instead of any available one'),
+      strict_email: z.boolean().optional().describe('With sign_in_email: true (API default) fails if that account is busy; false falls back to another available account'),
+      zoom_zak_url: z.string().optional().describe('Zoom signed-in join: HTTPS URL on your server that returns a fresh ZAK token'),
+      zoom_obf_url: z.string().optional().describe('Zoom on-behalf-of join: HTTPS URL on your server that returns a fresh OBF token (the user must already be in the meeting)'),
     },
     annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
   }, run(async (a) => {
@@ -113,6 +119,9 @@ export function createServer({ apiKey = process.env.MEETSTREAM_API_KEY, fetchImp
       retentionHours: a.retention_hours, separateAudio: a.separate_audio_streams,
       separateVideo: a.separate_video_streams, agentConfigId: a.agent_config_id,
       liveTranscriptWebhook: a.live_transcript_webhook_url, attrs: a.custom_attributes,
+      googleLoginDomain: a.google_login_domain, teamsLoginDomain: a.teams_login_domain,
+      signInEmail: a.sign_in_email, strictEmail: a.strict_email,
+      zoomZakUrl: a.zoom_zak_url, zoomObfUrl: a.zoom_obf_url,
     });
     const { status, data } = await client().createBot(payload, { idempotencyKey: a.idempotency_key });
     return { ...data, idempotent_replay: status === 507 || undefined, sent_payload: payload };

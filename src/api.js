@@ -187,6 +187,28 @@ export function buildCreateBotPayload(opts) {
   if (opts.socketWs) payload.socket_connection_url = { websocket_url: opts.socketWs };
   if (opts.attrs && Object.keys(opts.attrs).length) payload.custom_attributes = opts.attrs;
 
+  // Signed-in joins. The domain must already be registered on the account
+  // (google-login-domains / teams-login-domains); the API returns 400 otherwise.
+  if (opts.googleLoginDomain && opts.teamsLoginDomain) {
+    throw new Error('Pass only one of google_login_domain or teams_login_domain.');
+  }
+  if ((opts.signInEmail || opts.strictEmail !== undefined) && !opts.googleLoginDomain && !opts.teamsLoginDomain) {
+    throw new Error('sign_in_email and strict_email need google_login_domain or teams_login_domain.');
+  }
+  const signIn = (domainKey, domain) => ({
+    login_required: true,
+    [domainKey]: domain,
+    ...(opts.signInEmail ? { sign_in_email: opts.signInEmail } : {}),
+    ...(opts.strictEmail !== undefined ? { strict_email: Boolean(opts.strictEmail) } : {}),
+  });
+  if (opts.googleLoginDomain) payload.google_meet = signIn('google_login_domain', opts.googleLoginDomain);
+  if (opts.teamsLoginDomain) payload.teams = signIn('teams_login_domain', opts.teamsLoginDomain);
+
+  // Authenticated Zoom joins: HTTPS endpoints on the caller's server that return a fresh token.
+  if (opts.zoomZakUrl && opts.zoomObfUrl) throw new Error('Pass only one of zoom_zak_url or zoom_obf_url.');
+  if (opts.zoomZakUrl) payload.zoom = { zak_url: opts.zoomZakUrl };
+  if (opts.zoomObfUrl) payload.zoom = { obf_url: opts.zoomObfUrl };
+
   if (opts.transcript) {
     const provider = {};
     const p = opts.transcript;
