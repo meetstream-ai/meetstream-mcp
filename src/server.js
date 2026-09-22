@@ -89,7 +89,8 @@ export function createServer({ apiKey = process.env.MEETSTREAM_API_KEY, fetchImp
     inputSchema: {
       meeting_link: z.string().describe('Full meeting URL (Zoom, Google Meet, or Teams)'),
       bot_name: z.string().optional().describe('Display name in the meeting (default "MeetStream Bot")'),
-      record_video: z.boolean().optional().describe('Record video too (default false = audio only)'),
+      record_video: z.boolean().optional().describe('Record video as well as audio. Defaults to false: send audio-only unless the user asked for video. Transcripts, summaries, diarization and speaker timelines all work without it'),
+      video_layout: z.enum(['speaker_view', 'grid_view']).optional().describe("With record_video: 'speaker_view' (default here, follows the active speaker) or 'grid_view' (composited mosaic of everyone). Only pass grid_view when the user asked for grid or gallery view. The REST API itself defaults to grid_view, so this is always sent explicitly. Google Meet, Teams and Zoom only"),
       transcription_provider: z.enum(PROVIDERS).optional().describe('Post-call: deepgram (default choice), assemblyai, sarvam (Indic), meetstream, jigsawstack, meeting_captions (native). Real-time: deepgram_streaming, assemblyai_streaming. Streaming providers produce no post-call transcript (no transcription.processed webhook).'),
       language: z.string().optional().describe('Language in the provider\'s format (deepgram "en", assemblyai "en_us", sarvam "en-IN")'),
       callback_url: z.string().optional().describe('HTTPS webhook URL for lifecycle events'),
@@ -98,7 +99,7 @@ export function createServer({ apiKey = process.env.MEETSTREAM_API_KEY, fetchImp
       bot_image_url: z.string().optional().describe('PUBLIC image URL for the bot avatar (raw base64 is rejected)'),
       retention_hours: z.number().int().optional().describe('Data retention window in hours (default 720, i.e. 30 days)'),
       separate_audio_streams: z.boolean().optional().describe('Capture per-participant audio'),
-      separate_video_streams: z.boolean().optional().describe('Capture per-participant video'),
+      separate_video_streams: z.boolean().optional().describe('Capture one video file per participant. Opt-in only: leave unset unless the user explicitly asked for per-participant video'),
       agent_config_id: z.string().optional().describe('Attach a MIA conversational AI agent'),
       live_transcript_webhook_url: z.string().optional().describe('Webhook URL for live transcript chunks'),
       custom_attributes: z.record(z.string()).optional().describe('String key/values echoed back in every webhook'),
@@ -113,7 +114,7 @@ export function createServer({ apiKey = process.env.MEETSTREAM_API_KEY, fetchImp
     annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
   }, run(async (a) => {
     const payload = buildCreateBotPayload({
-      meetingLink: a.meeting_link, name: a.bot_name, video: a.record_video,
+      meetingLink: a.meeting_link, name: a.bot_name, video: a.record_video, videoLayout: a.video_layout,
       transcript: a.transcription_provider, language: a.language, callback: a.callback_url,
       joinAt: a.join_at, botMessage: a.bot_message, imageUrl: a.bot_image_url,
       retentionHours: a.retention_hours, separateAudio: a.separate_audio_streams,

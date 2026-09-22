@@ -180,6 +180,7 @@ export function buildCreateBotPayload(opts) {
   if (opts.joinAt) payload.join_at = opts.joinAt;
   if (opts.agentConfigId) payload.agent_config_id = opts.agentConfigId;
   if (opts.separateAudio) payload.audio_separate_streams = true;
+  // Per-participant video is opt-in only: never set implicitly.
   if (opts.separateVideo) payload.video_separate_streams = true;
   if (opts.liveTranscriptWebhook) payload.live_transcription_required = { webhook_url: opts.liveTranscriptWebhook };
   if (opts.liveAudioWs) payload.live_audio_required = { websocket_url: opts.liveAudioWs };
@@ -231,6 +232,19 @@ export function buildCreateBotPayload(opts) {
       ...(payload.recording_config || {}),
       retention: { type: 'timed', hours: Number(opts.retentionHours) },
     };
+  }
+
+  // Video defaults: audio only unless video was asked for, and when it was,
+  // speaker view unless grid was asked for (the API itself defaults to grid_view).
+  // video_layout only applies to mixed video, so it is skipped for audio-only bots.
+  if (payload.video_required) {
+    const layout = (opts.videoLayout || 'speaker_view').toLowerCase();
+    if (!['speaker_view', 'grid_view'].includes(layout)) {
+      throw new Error("video_layout must be 'speaker_view' or 'grid_view'.");
+    }
+    payload.recording_config = { ...(payload.recording_config || {}), video_layout: layout };
+  } else if (opts.videoLayout) {
+    throw new Error('video_layout needs record_video: true (an audio-only bot records no mixed video).');
   }
 
   // Sensible timeouts so bots never sit in empty meetings.

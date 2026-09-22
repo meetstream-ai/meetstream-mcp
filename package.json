@@ -1,6 +1,6 @@
 {
   "name": "@meetstream/mcp",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Official MeetStream MCP server \u2014 give Claude and any MCP client direct access to the MeetStream meeting-bot API (create bots, fetch transcripts, interact with live meetings).",
   "type": "module",
   "bin": {
