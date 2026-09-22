@@ -25,3 +25,21 @@ test('zoom token URLs map to zoom.zak_url / zoom.obf_url', () => {
   assert.deepEqual(build({ meetingLink: 'https://zoom.us/j/1', zoomObfUrl: 'https://x/obf' }).zoom, { obf_url: 'https://x/obf' });
   assert.equal(build({ meetingLink: 'https://zoom.us/j/1' }).zoom, undefined);
 });
+
+test('video is off by default and speaker view is explicit when it is on', () => {
+  const audio = build({ meetingLink: 'https://meet.google.com/x' });
+  assert.equal(audio.video_required, false);
+  assert.equal(audio.recording_config?.video_layout, undefined); // layout is meaningless without video
+
+  const video = build({ meetingLink: 'https://meet.google.com/x', video: true });
+  assert.equal(video.video_required, true);
+  assert.equal(video.recording_config.video_layout, 'speaker_view'); // API default is grid_view, so send it
+  assert.equal(video.video_separate_streams, undefined);            // per-participant video stays opt-in
+
+  assert.equal(build({ meetingLink: 'm', video: true, videoLayout: 'grid_view' }).recording_config.video_layout, 'grid_view');
+});
+
+test('video_layout is validated and requires video', () => {
+  assert.throws(() => build({ meetingLink: 'm', videoLayout: 'speaker_view' }), /needs record_video/);
+  assert.throws(() => build({ meetingLink: 'm', video: true, videoLayout: 'gallery' }), /speaker_view.*grid_view/);
+});
