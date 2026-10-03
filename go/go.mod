@@ -1,6 +1,6 @@
 module github.com/meetstream-ai/meetstream-mcp/go
 
-go 1.26.1
+go 1.25.0
 
 require (
 	github.com/google/jsonschema-go v0.4.3
