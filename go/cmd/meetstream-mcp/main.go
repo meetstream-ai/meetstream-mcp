@@ -72,15 +72,19 @@ func main() {
 
 func newMCPServer(transport string, fallbackKey string) (*mcp.Server, *telemetry.Client) {
 	tel := telemetry.New(transport)
-	srv := mcp.NewServer(&mcp.Implementation{Name: "meetstream", Version: Version}, nil)
+	return buildServer(tel, fallbackKey, nil), tel
+}
+
+func buildServer(tel *telemetry.Client, key string, opts *mcp.ServerOptions) *mcp.Server {
+	srv := mcp.NewServer(&mcp.Implementation{Name: "meetstream", Version: Version}, opts)
 	tools.Register(srv, tools.Config{
 		BaseURL:     os.Getenv("MEETSTREAM_API_URL"),
-		FallbackKey: fallbackKey,
+		FallbackKey: key,
 		OnCall: func(tool string, ok bool) {
 			tel.Track("mcp_tool_called", map[string]any{"tool_name": tool, "ok": ok})
 		},
 	})
-	return srv, tel
+	return srv
 }
 
 func runStdio(logger *slog.Logger) error {
@@ -104,6 +108,14 @@ func runHTTP(logger *slog.Logger) error {
 	srv, tel := newMCPServer("remote", fallback)
 
 	cfg := server.Config{Host: host, FallbackKey: fallback, Logger: logger}
+	// Legacy HTTP+SSE sessions get their own server bound to the session's key.
+	// The keepalive ping stops nginx and other proxies from dropping idle streams.
+	cfg.SessionServer = func(apiKey string) *mcp.Server {
+		if apiKey == "" {
+			apiKey = fallback
+		}
+		return buildServer(tel, apiKey, &mcp.ServerOptions{KeepAlive: 30 * time.Second, KeepAliveFailureThreshold: 3})
+	}
 	if v := os.Getenv("MCP_ALLOWED_HOSTS"); v != "" {
 		cfg.AllowedHosts = strings.Split(v, ",")
 	}

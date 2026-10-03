@@ -36,6 +36,11 @@ type Config struct {
 	FallbackKey  string        // MEETSTREAM_API_KEY: single-tenant fallback; leave empty for the public server
 	OAuth        *oauth.Server // nil = OAuth off (Node behaviour)
 	Logger       *slog.Logger
+	// SessionServer builds the MCP server for one legacy HTTP+SSE session,
+	// bound to that session's API key. nil disables /sse.
+	SessionServer func(apiKey string) *mcp.Server
+	// MaxSSESessions caps concurrent legacy SSE streams (default 500).
+	MaxSSESessions int
 }
 
 const missingKeyMessage = `Missing MeetStream API key. Send it as "Authorization: Bearer <key>", ` +
@@ -48,8 +53,9 @@ func New(srv *mcp.Server, cfg Config) http.Handler {
 		cfg.Logger = slog.Default()
 	}
 	streamable := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return srv }, &mcp.StreamableHTTPOptions{
-		Stateless:    true,
-		JSONResponse: true,
+		Stateless: true,
+		// Replies are SSE-framed (text/event-stream), exactly as the Node server
+		// sends them; clients that only accept JSON still get JSON.
 		// Same rule as Node's createMcpExpressApp: only a localhost bind gets the
 		// automatic loopback check. Behind nginx every request arrives from
 		// 127.0.0.1 with the public Host header, which that check would reject.
@@ -82,7 +88,14 @@ func New(srv *mcp.Server, cfg Config) http.Handler {
 	mux.HandleFunc("DELETE /mcp", func(w http.ResponseWriter, _ *http.Request) {
 		rpcError(w, 405, -32000, "Method not allowed.")
 	})
+	if cfg.SessionServer != nil {
+		sse := newLegacySSE(cfg, a)
+		mux.Handle("GET /sse", sse.open)
+		mux.Handle("POST /sse", sse.post)
+		mux.Handle("POST /messages", sse.post) // some clients hard-code this path
+	}
 	if cfg.OAuth != nil {
+		mux.Handle("OPTIONS /sse", corsMCP(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })))
 		mux.Handle("OPTIONS /mcp", corsMCP(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })))
 		cfg.OAuth.Routes(mux)
 	}
@@ -241,7 +254,7 @@ func hostCheck(allowed []string, next http.Handler) http.Handler {
 // are used anywhere, so a wildcard origin grants nothing extra.
 func corsFor(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/mcp" {
+		if r.URL.Path == "/mcp" || r.URL.Path == "/sse" || r.URL.Path == "/messages" {
 			setCORS(w)
 		}
 		next.ServeHTTP(w, r)

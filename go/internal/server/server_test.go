@@ -73,7 +73,15 @@ func newEnv(t *testing.T, withOAuth bool, fallback string) *env {
 	tools.Register(m, tools.Config{BaseURL: up.URL, FallbackKey: fallback})
 	e := &env{up: up}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	cfg := Config{Host: "0.0.0.0", FallbackKey: fallback, Logger: logger}
+	cfg := Config{Host: "0.0.0.0", FallbackKey: fallback, Logger: logger,
+		SessionServer: func(key string) *mcp.Server {
+			if key == "" {
+				key = fallback
+			}
+			s := mcp.NewServer(&mcp.Implementation{Name: "meetstream", Version: "test"}, nil)
+			tools.Register(s, tools.Config{BaseURL: up.URL, FallbackKey: key})
+			return s
+		}}
 	// The public URL must be known before the listener exists, so start unstarted.
 	e.srv = httptest.NewUnstartedServer(nil)
 	e.srv.Start()
@@ -113,6 +121,14 @@ func rpc(t *testing.T, base, path string, hdr map[string]string, body string) (*
 	}
 	defer res.Body.Close()
 	raw, _ := io.ReadAll(res.Body)
+	if strings.HasPrefix(res.Header.Get("Content-Type"), "text/event-stream") {
+		for _, line := range strings.Split(string(raw), "\n") {
+			if strings.HasPrefix(line, "data:") {
+				raw = []byte(strings.TrimSpace(line[5:]))
+				break
+			}
+		}
+	}
 	var m map[string]any
 	_ = json.Unmarshal(raw, &m)
 	return res, m

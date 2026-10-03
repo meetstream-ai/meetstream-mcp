@@ -17,11 +17,13 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/meetstream-ai/meetstream-mcp/go/internal/jsjson"
 	"github.com/meetstream-ai/meetstream-mcp/go/internal/meetstream"
 	"github.com/meetstream-ai/meetstream-mcp/go/internal/ordered"
 )
@@ -53,16 +55,51 @@ type toolDef struct {
 	Annotations json.RawMessage `json:"annotations"`
 }
 
+type catalogEntry struct {
+	def       toolDef
+	ann       mcp.ToolAnnotations
+	validator func(json.RawMessage) error
+}
+
+type catalog struct {
+	entries  []catalogEntry
+	handlers map[string]handler
+}
+
+// loadCatalog parses tools.json and compiles every input schema once per
+// process. Register only wires handlers, so it is cheap to call again for each
+// legacy SSE session.
+var loadCatalog = sync.OnceValue(func() *catalog {
+	var defs []toolDef
+	if err := json.Unmarshal(toolsJSON, &defs); err != nil {
+		panic(fmt.Errorf("tools.json: %w", err))
+	}
+	c := &catalog{handlers: handlers()}
+	if len(defs) != len(c.handlers) {
+		panic(fmt.Errorf("tools.json has %d tools, handler table has %d", len(defs), len(c.handlers)))
+	}
+	for _, d := range defs {
+		if _, ok := c.handlers[d.Name]; !ok {
+			panic(fmt.Errorf("no handler for tool %q", d.Name))
+		}
+		var ann mcp.ToolAnnotations
+		if len(d.Annotations) > 0 {
+			if err := json.Unmarshal(d.Annotations, &ann); err != nil {
+				panic(fmt.Errorf("tool %q annotations: %w", d.Name, err))
+			}
+		}
+		c.entries = append(c.entries, catalogEntry{def: d, ann: ann, validator: mustValidator(d.Name, d.InputSchema)})
+	}
+	return c
+})
+
 type handler func(ctx context.Context, c *meetstream.Client, args json.RawMessage) (any, error)
 
 // Register adds every tool to srv. It panics if tools.json and the handler
 // table disagree, so a mismatch fails at startup rather than at call time.
 func Register(srv *mcp.Server, cfg Config) {
-	var defs []toolDef
-	if err := json.Unmarshal(toolsJSON, &defs); err != nil {
-		panic(fmt.Errorf("tools.json: %w", err))
-	}
-	hs := handlers()
+	cat := loadCatalog()
+	hs := cat.handlers
 	// Node answers a call to an unknown tool with an isError result rather than a
 	// JSON-RPC error; keep that so clients see the same thing.
 	srv.AddReceivingMiddleware(func(next mcp.MethodHandler) mcp.MethodHandler {
@@ -75,21 +112,8 @@ func Register(srv *mcp.Server, cfg Config) {
 			return next(ctx, method, req)
 		}
 	})
-	if len(defs) != len(hs) {
-		panic(fmt.Errorf("tools.json has %d tools, handler table has %d", len(defs), len(hs)))
-	}
-	for _, d := range defs {
-		h, ok := hs[d.Name]
-		if !ok {
-			panic(fmt.Errorf("no handler for tool %q", d.Name))
-		}
-		var ann mcp.ToolAnnotations
-		if len(d.Annotations) > 0 {
-			if err := json.Unmarshal(d.Annotations, &ann); err != nil {
-				panic(fmt.Errorf("tool %q annotations: %w", d.Name, err))
-			}
-		}
-		validator := mustValidator(d.Name, d.InputSchema)
+	for _, e := range cat.entries {
+		d, ann, validator, h := e.def, e.ann, e.validator, hs[e.def.Name]
 		name := d.Name
 		srv.AddTool(&mcp.Tool{
 			Name:        d.Name,
@@ -139,7 +163,7 @@ func textResult(text string, isErr bool) *mcp.CallToolResult {
 }
 
 // render matches Node's json(): strings pass through, everything else is
-// pretty-printed JSON with two-space indentation.
+// JSON.stringify(value, null, 2), reproduced byte for byte by jsjson.
 func render(v any) string {
 	switch t := v.(type) {
 	case string:
@@ -147,9 +171,12 @@ func render(v any) string {
 	case *meetstream.Response:
 		return renderResponse(t)
 	}
-	b, err := json.MarshalIndent(v, "", "  ")
+	b, err := json.Marshal(v)
 	if err != nil {
 		return fmt.Sprint(v)
+	}
+	if out, err := jsjson.Indent(b); err == nil {
+		return out
 	}
 	return string(b)
 }
@@ -167,11 +194,10 @@ func renderResponse(r *meetstream.Response) string {
 			return s
 		}
 	}
-	var b bytes.Buffer
-	if json.Indent(&b, r.Raw, "", "  ") != nil {
-		return string(r.Raw)
+	if out, err := jsjson.Indent(r.Raw); err == nil {
+		return out
 	}
-	return b.String()
+	return string(r.Raw)
 }
 
 func mustValidator(name string, schema json.RawMessage) func(json.RawMessage) error {
