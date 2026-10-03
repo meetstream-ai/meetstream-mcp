@@ -136,3 +136,39 @@ Claude's custom connectors can only pass the API key as `?key=`. nginx's default
 3. Purge the logs written before the change, which contain keys: `sudo truncate -s 0 /var/log/nginx/access.log*` and remove the rotated `.gz` files.
 
 nginx's error log can also quote the request line when an upstream error occurs. Keep it at the default `error` level and rotate it.
+
+## Go server (production since 2026-10-03)
+
+`mcp.meetstream.ai` is served by the Go implementation in [`go/`](../go). The Node container stays
+on the VM, stopped from traffic but running, as an instant rollback.
+
+| Container | Image | Port | Role |
+|-----------|-------|------|------|
+| `meetstream-mcp-go` | `meetstream-mcp:go-v<version>` | 127.0.0.1:8081 | live (nginx upstream) |
+| `meetstream-mcp` | `meetstream-mcp:v0.3.3` (Node) | 127.0.0.1:8080 | rollback |
+
+Settings live in `/etc/meetstream-mcp/go.env` (root, 0600): `MCP_OAUTH_MODE`, `MCP_PUBLIC_URL`,
+`MCP_OAUTH_SECRET`, and in dashboard mode `MCP_DASHBOARD_GRANT_KEY` + `MEETSTREAM_DASHBOARD_URL`.
+The secrets were generated on the VM and are not stored anywhere else. Rotating `MCP_OAUTH_SECRET`:
+prepend a new key (`new,old`), restart, and drop the old one after 90 days (the refresh-token lifetime).
+
+Build and deploy (no CI involved; the image is built on the VM):
+```bash
+git archive HEAD go | gzip > /tmp/go-src.tgz
+gcloud compute scp /tmp/go-src.tgz mcp-server:~/go-src.tgz --zone=us-central1-a --project=meetstream-mcp
+gcloud compute ssh mcp-server --zone=us-central1-a --project=meetstream-mcp --command='
+  rm -rf ~/mcp-go && mkdir ~/mcp-go && tar xzf ~/go-src.tgz -C ~/mcp-go && cd ~/mcp-go/go &&
+  sudo docker build -q --build-arg VERSION=0.4.0 -t meetstream-mcp:go-v0.4.0 . &&
+  sudo docker rm -f meetstream-mcp-go &&
+  sudo docker run -d --name meetstream-mcp-go --restart=always --env-file /etc/meetstream-mcp/go.env \
+    -p 127.0.0.1:8081:8080 --memory=256m meetstream-mcp:go-v0.4.0'
+```
+
+Rollback to Node (seconds): point nginx back at 8080.
+```bash
+gcloud compute ssh mcp-server --zone=us-central1-a --project=meetstream-mcp --command='
+  T=$(readlink -f /etc/nginx/sites-enabled/mcp) &&
+  sudo sed -i "s#proxy_pass http://127.0.0.1:8081;#proxy_pass http://127.0.0.1:8080;#" $T &&
+  sudo nginx -t && sudo systemctl reload nginx'
+```
+A pre-cutover copy of the nginx site is at `/etc/nginx/mcp.conf.bak-node-202610031922`.

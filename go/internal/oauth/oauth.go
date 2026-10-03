@@ -402,11 +402,20 @@ func (s *Server) authorize(w http.ResponseWriter, r *http.Request) {
 	reqToken := requestPrefix + sealed
 
 	if s.cfg.Mode == ModeDashboard {
+		// What the consent screen shows (app name, where it sends the user back)
+		// is sealed with the key shared with the dashboard, so a crafted link
+		// cannot make the screen claim to be a different app.
+		ctxTok, err := s.cfg.GrantBox.Seal(ConsentPurpose, consentContext{
+			V: 1, RequestHash: seal.Hash(reqToken), ClientName: displayName(c.Name),
+			RedirectURI: redirect, RedirectHost: redirectHost(redirect), Exp: ar.Exp,
+		})
+		if err != nil {
+			fail("server_error", "could not start sign-in")
+			return
+		}
 		v := url.Values{}
 		v.Set("request", reqToken)
-		v.Set("client_name", displayName(c.Name))
-		v.Set("redirect_host", redirectHost(redirect))
-		v.Set("callback", s.cfg.PublicURL+"/oauth/callback")
+		v.Set("ctx", ctxTok)
 		http.Redirect(w, r, strings.TrimRight(s.cfg.DashboardURL, "/")+"/oauth/mcp/authorize?"+v.Encode(), http.StatusFound)
 		return
 	}
@@ -479,6 +488,20 @@ func (s *Server) authorizeSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.issueCode(w, r, ar, key)
+}
+
+// ConsentPurpose is the AAD for the consent context the dashboard opens.
+const ConsentPurpose = "meetstream-mcp-consent-v1"
+
+// consentContext is sealed for the dashboard: everything its consent screen
+// displays, bound to one pending request.
+type consentContext struct {
+	V            int    `json:"v"`
+	RequestHash  string `json:"request_hash"`
+	ClientName   string `json:"client_name"`
+	RedirectURI  string `json:"redirect_uri"`
+	RedirectHost string `json:"redirect_host"`
+	Exp          int64  `json:"exp"`
 }
 
 // grant is what the dashboard seals with the shared grant secret.
