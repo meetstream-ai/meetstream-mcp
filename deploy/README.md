@@ -172,3 +172,14 @@ gcloud compute ssh mcp-server --zone=us-central1-a --project=meetstream-mcp --co
   sudo nginx -t && sudo systemctl reload nginx'
 ```
 A pre-cutover copy of the nginx site is at `/etc/nginx/mcp.conf.bak-node-202610031922`.
+
+### Default nginx log (2026-10-03)
+
+The site file only covers `mcp.meetstream.ai`. Requests that miss it (e.g. the bare IP) fell through to
+nginx's default `access_log` in `/etc/nginx/nginx.conf`, which recorded full query strings, so `?key=`
+values leaked there from 11 to 19 Sep. That line now uses a path-only `default_noquery` format
+(backup: `/etc/nginx/nginx.conf.bak-20261003`). On a fresh VM, apply the same change:
+```nginx
+log_format default_noquery '$remote_addr - $remote_user [$time_local] "$request_method $uri $server_protocol" $status $body_bytes_sent "$http_referer" "$http_user_agent"';
+access_log /var/log/nginx/access.log default_noquery;
+```
