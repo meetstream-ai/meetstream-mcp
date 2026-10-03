@@ -5,7 +5,7 @@
 Two ways to run it:
 
 - **Local (stdio)** - the default, `npx @meetstream/mcp`. Your MCP client launches it as a subprocess; nothing to host.
-- **Remote (Streamable HTTP)** - `https://mcp.meetstream.ai/mcp`. A hosted, multi-tenant endpoint you can add by URL, no local install. Each request authenticates with its own API key via header (see [Remote server](#remote-server-streamable-http) below).
+- **Remote (Streamable HTTP)** - `https://mcp.meetstream.ai/mcp`. A hosted, multi-tenant endpoint you can add by URL, no local install. Sign in with OAuth from your client, or send an API key (see [Remote server](#remote-server-streamable-http) below).
 
 ```
 Local:   Claude/MCP client ──stdio (subprocess)──► @meetstream/mcp ──HTTPS + API key──► api.meetstream.ai
@@ -147,7 +147,22 @@ Every tool description and the `webhook_events_guide` bake in **live-verified gr
 
 ## Remote server (Streamable HTTP)
 
-`https://mcp.meetstream.ai/mcp` - a hosted, multi-tenant [Streamable HTTP](https://modelcontextprotocol.io) endpoint. No `npx`, no local Node, no per-machine install. Add it by URL:
+`https://mcp.meetstream.ai/mcp` - a hosted, multi-tenant [Streamable HTTP](https://modelcontextprotocol.io) endpoint. No `npx`, no local Node, no per-machine install.
+
+### Sign in with OAuth (no key to copy)
+
+Add the URL with no key. Your MCP client discovers MeetStream's OAuth server, opens a browser page, and stores the token itself:
+
+```bash
+claude mcp add --transport http meetstream https://mcp.meetstream.ai/mcp
+# then run /mcp in Claude Code and choose Authenticate
+```
+
+In Claude (web or desktop), Cursor, VS Code and other OAuth-capable clients, add the same URL as a custom connector and click **Connect**. Under the hood this is the standard MCP authorization flow: protected resource metadata (RFC 9728), authorization server metadata (RFC 8414), dynamic client registration (RFC 7591) and the authorization code flow with PKCE. Access tokens last an hour and refresh automatically. To disconnect, delete the key named after the app on the [API keys page](https://app.meetstream.ai/api-key).
+
+### Or send your API key
+
+Every pre-OAuth method still works, unchanged:
 
 ```json
 {
@@ -160,15 +175,24 @@ Every tool description and the `webhook_events_guide` bake in **live-verified gr
 }
 ```
 
-**How auth works here is different from stdio mode:** this endpoint serves many different MeetStream accounts at once, so it holds **no API key of its own**. Every request must carry your key, either as `Authorization: Bearer <key>` or `X-MeetStream-Api-Key: <key>`. A request with no key gets a `401` with setup instructions instead of silently failing.
+`X-MeetStream-Api-Key: <key>` works too, and for clients whose connector UI cannot set headers, `https://mcp.meetstream.ai/mcp?key=<key>`. The server never logs query strings, but a key in a URL can still end up in client-side history, so prefer OAuth or a header where you can.
 
-The server is stateless - every request is independent, there's no session to keep alive, and it scales horizontally with zero shared state between requests.
+### Legacy SSE transport
 
-**Self-hosting it yourself?** The same code ships as a Docker image - see [`deploy/`](./deploy) for the full runbook (fresh isolated VM, nginx, Let's Encrypt, systemd) or just:
+Clients that predate Streamable HTTP (the 2024-11-05 HTTP+SSE transport) connect to `https://mcp.meetstream.ai/sse` with the same key options. The stream's first event names the per-session message endpoint; the key never appears in it.
+
+### How it works
+
+The server holds **no API key of its own**: each request (or SSE session) carries the caller's key or an OAuth token that wraps it. A request with no credentials gets a `401` with setup instructions and a `WWW-Authenticate` header pointing OAuth clients at the sign-in flow. Streamable HTTP is stateless, so the service scales horizontally with no shared state; OAuth tokens are encrypted, self-contained values, so there is no token database either.
+
+The hosted server runs the Go implementation in [`go/`](./go) (one shared server instance, about 1.7 ms of CPU per request). The Node implementation in `src/` remains the `npx` / stdio package.
+
+**Self-hosting?** See [`deploy/`](./deploy), or:
 ```bash
-docker build -t meetstream-mcp .
-docker run -p 8080:8080 meetstream-mcp   # POST http://localhost:8080/mcp
+docker build -f go/Dockerfile -t meetstream-mcp go
+docker run -p 8080:8080 meetstream-mcp            # POST http://localhost:8080/mcp
 ```
+To enable OAuth on your own deployment set `MCP_OAUTH_MODE=paste`, `MCP_PUBLIC_URL` and `MCP_OAUTH_SECRET` (generate one with `docker run --rm meetstream-mcp gen-secret`). All settings are listed at the top of [`go/cmd/meetstream-mcp/main.go`](./go/cmd/meetstream-mcp/main.go).
 
 ## Troubleshooting
 
@@ -179,13 +203,14 @@ docker run -p 8080:8080 meetstream-mcp   # POST http://localhost:8080/mcp
 | Client shows "meetstream" server failed to start | Run `npx -y @meetstream/mcp` directly in a terminal - errors will print to stderr |
 | `get_transcript` returns `ready: false` | The meeting hasn't finished processing yet, or (for streaming providers) there is no post-call transcript - check `get_bot_status` first |
 | Calendar tools return empty/errors | No calendar is connected yet - connect one via `meetstream calendar connect` in the [CLI](https://github.com/meetstream-ai/meetstream-cli) first |
-| Remote server (`mcp.meetstream.ai`) returns 401 | You didn't send `Authorization: Bearer <key>` (or `X-MeetStream-Api-Key`) on the request - the remote server has no key of its own |
+| Remote server (`mcp.meetstream.ai`) returns 401 | Sign in through your client (OAuth), or send `Authorization: Bearer <key>` / `X-MeetStream-Api-Key` - the remote server has no key of its own |
 
 ## Development
 
 ```bash
 npm install
-npm test        # spawns the real stdio server and speaks JSON-RPC to it end-to-end
+npm test        # Node: spawns the real stdio server and speaks JSON-RPC to it end-to-end
+cd go && go test -race ./...   # Go: HTTP, OAuth, SSE and real-client tests
 ```
 
 ---
