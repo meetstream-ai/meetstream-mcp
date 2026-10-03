@@ -1,8 +1,8 @@
-// MeetStream MCP server — remote Streamable HTTP transport.
+// MeetStream MCP server - remote Streamable HTTP transport.
 // Multi-tenant by design: this process may serve many different MeetStream accounts at once,
 // so there is NO shared server-side API key. Each HTTP request supplies its own MeetStream API
 // key via the Authorization header (or X-MeetStream-Api-Key), and a fresh MeetStreamClient +
-// McpServer instance is built per request — exactly the SDK's documented "stateless mode" pattern.
+// McpServer instance is built per request - exactly the SDK's documented "stateless mode" pattern.
 import { createMcpExpressApp } from '@modelcontextprotocol/sdk/server/express.js';
 import { setTransport, track } from './telemetry.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -10,7 +10,7 @@ import { createServer } from './server.js';
 
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
-// Optional server-side fallback key — only useful for a private/single-tenant deployment.
+// Optional server-side fallback key - only useful for a private/single-tenant deployment.
 // A public multi-tenant instance should leave this unset and require per-request auth.
 const FALLBACK_API_KEY = process.env.MEETSTREAM_API_KEY;
 
@@ -19,7 +19,7 @@ function extractApiKey(req) {
   if (auth?.toLowerCase().startsWith('bearer ')) return auth.slice(7).trim();
   const custom = req.headers['x-meetstream-api-key'];
   if (custom) return Array.isArray(custom) ? custom[0] : custom;
-  // Query param (?key= or ?api_key=) — lets the key ride in the connector URL for MCP clients
+  // Query param (?key= or ?api_key=) - lets the key ride in the connector URL for MCP clients
   // whose "add custom connector" UI can't attach an auth header (they'd otherwise try an OAuth
   // sign-in flow this server doesn't implement). Sending the key here means no 401, so no sign-in.
   const q = req.query?.key || req.query?.api_key;
@@ -47,8 +47,12 @@ app.get('/', (_req, res) => {
 });
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
-app.post('/mcp', async (req, res) => {
+// Also served at "/" when the request carries a key, for clients configured with the bare origin.
+app.post(['/mcp', '/'], async (req, res) => {
   const apiKey = extractApiKey(req);
+  // Keep a keyless POST / as a plain 404: Claude treats it as "not the endpoint" and moves on
+  // to /mcp, whereas a 401 at the root would push it into OAuth discovery.
+  if (!apiKey && req.path === '/') return res.status(404).json({ error: 'Not found. The MCP endpoint is /mcp.' });
   if (!apiKey) return unauthorized(res);
 
   const server = createServer({ apiKey });
@@ -65,9 +69,9 @@ app.post('/mcp', async (req, res) => {
   }
 });
 
-// Streamable HTTP is POST-only in stateless mode — no server-push stream or session to resume.
+// Streamable HTTP is POST-only in stateless mode - no server-push stream or session to resume.
 app.get('/mcp', (_req, res) => {
-  res.status(405).json({ jsonrpc: '2.0', error: { code: -32000, message: 'Method not allowed. This server runs stateless — use POST.' }, id: null });
+  res.status(405).json({ jsonrpc: '2.0', error: { code: -32000, message: 'Method not allowed. This server runs stateless - use POST.' }, id: null });
 });
 app.delete('/mcp', (_req, res) => {
   res.status(405).json({ jsonrpc: '2.0', error: { code: -32000, message: 'Method not allowed.' }, id: null });

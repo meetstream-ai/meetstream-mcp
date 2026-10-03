@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Creates a FRESH, isolated GCP project + VM for the MeetStream remote MCP server.
-# Deliberately separate from meetstream-n8n / meetstream-firecrawl / meetstram-blog —
+# Deliberately separate from meetstream-n8n / meetstream-firecrawl / meetstram-blog -
 # no shared disk, no shared blast radius with other production services.
 #
 # Prereqs: `gcloud auth login --update-adc` must have been run interactively first
@@ -13,10 +13,10 @@ PROJECT_ID="${MCP_PROJECT_ID:-meetstream-mcp}"
 BILLING_ACCOUNT="${MCP_BILLING_ACCOUNT:-01FD5E-E5BF3B-E3EB75}"   # Singapore Master Billing (existing MeetStream account)
 ZONE="${MCP_ZONE:-us-central1-a}"
 VM_NAME="${MCP_VM_NAME:-mcp-server}"
-MACHINE_TYPE="${MCP_MACHINE_TYPE:-e2-small}"                     # 2 vCPU burst / 2GB — plenty for this workload
+MACHINE_TYPE="${MCP_MACHINE_TYPE:-e2-small}"                     # 2 vCPU burst / 2GB - plenty for this workload
 
 echo "== 1. Create project =="
-gcloud projects create "$PROJECT_ID" --name="MeetStream MCP Server" || echo "(project may already exist — continuing)"
+gcloud projects create "$PROJECT_ID" --name="MeetStream MCP Server" || echo "(project may already exist - continuing)"
 
 echo "== 2. Link billing =="
 gcloud billing projects link "$PROJECT_ID" --billing-account="$BILLING_ACCOUNT"

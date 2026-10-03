@@ -1,6 +1,6 @@
 # Deploying the remote MCP server (`mcp.meetstream.ai`)
 
-This deploys `@meetstream/mcp` as a **standalone, isolated** service — its own GCP project, its
+This deploys `@meetstream/mcp` as a **standalone, isolated** service - its own GCP project, its
 own VM, its own disk. Deliberately **not** on the shared `meetstream-n8n` VM (or any other
 existing MeetStream service) to keep blast radius contained.
 
@@ -17,16 +17,16 @@ mcp.meetstream.ai         on the VM                  meetstream-mcp            (
 Multi-tenant by design: the server holds **no MeetStream API key of its own**. Every caller
 supplies their own key per request via `Authorization: Bearer <key>` or `X-MeetStream-Api-Key`
 (see `src/http-server.js`). This is what makes it safe to expose publicly under the MeetStream
-domain — no shared credential, no cross-tenant risk.
+domain - no shared credential, no cross-tenant risk.
 
 ## One-time prerequisites
 
 1. **GCP auth** (this machine's `sidhdharth@meetstream.ai` token needs a one-time interactive
-   refresh — cannot be done from a non-interactive session):
+   refresh - cannot be done from a non-interactive session):
    ```bash
    gcloud auth login --update-adc
    ```
-2. **AWS Route 53 access** — an IAM credential with `route53:ChangeResourceRecordSets` /
+2. **AWS Route 53 access** - an IAM credential with `route53:ChangeResourceRecordSets` /
    `route53:ListHostedZones` on the `meetstream.ai` hosted zone. Neither credential set present
    on this machine as of this writing has that permission (`meetstream-ro` and `ms-bots` are both
    scoped to other things).
@@ -38,7 +38,7 @@ domain — no shared credential, no cross-tenant risk.
 ./00-create-infra.sh
 # → prints the VM's external IP
 
-# 2. Point DNS at it (Route 53) — fill in the IP from step 1
+# 2. Point DNS at it (Route 53) - fill in the IP from step 1
 #    Either via AWS CLI:
 aws route53 change-resource-record-sets \
   --hosted-zone-id <MEETSTREAM_AI_ZONE_ID> \
@@ -60,7 +60,7 @@ curl https://mcp.meetstream.ai/health
 ```
 
 The GitHub Actions workflow (`.github/workflows/docker-publish.yml`) builds and pushes
-`ghcr.io/meetstream-ai/meetstream-mcp:latest` on every push to `main` — `01-vm-setup.sh` pulls
+`ghcr.io/meetstream-ai/meetstream-mcp:latest` on every push to `main` - `01-vm-setup.sh` pulls
 that image, so redeploys after a code change are just:
 ```bash
 gcloud compute ssh mcp-server --zone=us-central1-a --project=meetstream-mcp \
@@ -82,13 +82,12 @@ Once live, any MCP client that supports remote (Streamable HTTP) servers can add
 }
 ```
 
-No `npx`, no local Node install, no per-machine setup — the client just needs its own MeetStream
+No `npx`, no local Node install, no per-machine setup - the client just needs its own MeetStream
 API key.
 
 ## Cost estimate
 
-`e2-small` (2 vCPU burst, 2GB RAM), 20GB pd-balanced disk, us-central1-a — roughly **$13–15/mo**,
-in line with the existing n8n/blog VMs on the same billing account.
+`e2-small` (2 vCPU burst, 2GB RAM), 20GB pd-balanced disk, us-central1-a.
 
 ## Redeploying a new version
 
@@ -127,3 +126,13 @@ curl -s -X POST https://mcp.meetstream.ai/mcp \
 ```
 
 **Rollback:** `sudo docker stop meetstream-mcp && sudo docker rm meetstream-mcp && sudo docker rename meetstream-mcp-rollback meetstream-mcp && sudo docker start meetstream-mcp`
+
+## Keys in logs
+
+Claude's custom connectors can only pass the API key as `?key=`. nginx's default access log records the full request line, query string included, so `nginx-mcp.conf` defines a `mcp_noquery` log format that logs the path only. On an existing VM, apply it by hand, because certbot has already rewritten the live site file:
+
+1. Add the `log_format mcp_noquery ...` line above the `server {` blocks in `/etc/nginx/sites-available/mcp.meetstream.ai`, and `access_log /var/log/nginx/mcp.access.log mcp_noquery;` inside each `server` block.
+2. `sudo nginx -t && sudo systemctl reload nginx`
+3. Purge the logs written before the change, which contain keys: `sudo truncate -s 0 /var/log/nginx/access.log*` and remove the rotated `.gz` files.
+
+nginx's error log can also quote the request line when an upstream error occurs. Keep it at the default `error` level and rotate it.

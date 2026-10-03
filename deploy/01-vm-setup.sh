@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Runs ON the fresh VM (via SSH) to install Docker, nginx, certbot, pull the image, and serve
-# mcp.meetstream.ai with TLS. Idempotent — safe to re-run.
+# mcp.meetstream.ai with TLS. Idempotent - safe to re-run.
 #
 # Usage (from your laptop):
 #   gcloud compute scp deploy/01-vm-setup.sh deploy/nginx-mcp.conf mcp-server:~/ --zone=us-central1-a --project=meetstream-mcp
