@@ -1,0 +1,641 @@
+[
+  {
+    "name": "create_bot",
+    "title": "Create a meeting bot",
+    "description": "Send a MeetStream bot to a Zoom / Google Meet / Microsoft Teams meeting (or schedule it with join_at). Returns bot_id and (when a transcription provider is set) transcript_id. Set callback_url to receive lifecycle webhooks.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "meeting_link": {
+          "type": "string",
+          "description": "Full meeting URL (Zoom, Google Meet, or Teams)"
+        },
+        "bot_name": {
+          "type": "string",
+          "description": "Display name in the meeting (default \"MeetStream Bot\")"
+        },
+        "record_video": {
+          "type": "boolean",
+          "description": "Record video as well as audio. Defaults to false: send audio-only unless the user asked for video. Transcripts, summaries, diarization and speaker timelines all work without it"
+        },
+        "video_layout": {
+          "type": "string",
+          "enum": [
+            "speaker_view",
+            "grid_view"
+          ],
+          "description": "With record_video: 'speaker_view' (default here, follows the active speaker) or 'grid_view' (composited mosaic of everyone). Only pass grid_view when the user asked for grid or gallery view. The REST API itself defaults to grid_view, so this is always sent explicitly. Google Meet, Teams and Zoom only"
+        },
+        "transcription_provider": {
+          "type": "string",
+          "enum": [
+            "deepgram",
+            "assemblyai",
+            "sarvam",
+            "meetstream",
+            "jigsawstack",
+            "meeting_captions",
+            "deepgram_streaming",
+            "assemblyai_streaming"
+          ],
+          "description": "Post-call: deepgram (default choice), assemblyai, sarvam (Indic), meetstream, jigsawstack, meeting_captions (native). Real-time: deepgram_streaming, assemblyai_streaming. Streaming providers produce no post-call transcript (no transcription.processed webhook)."
+        },
+        "language": {
+          "type": "string",
+          "description": "Language in the provider's format (deepgram \"en\", assemblyai \"en_us\", sarvam \"en-IN\")"
+        },
+        "callback_url": {
+          "type": "string",
+          "description": "HTTPS webhook URL for lifecycle events"
+        },
+        "join_at": {
+          "type": "string",
+          "description": "Schedule a future join, ISO 8601 e.g. 2026-07-02T15:00:00Z"
+        },
+        "bot_message": {
+          "type": "string",
+          "description": "Chat message posted when the bot joins"
+        },
+        "bot_image_url": {
+          "type": "string",
+          "description": "PUBLIC image URL for the bot avatar (raw base64 is rejected)"
+        },
+        "retention_hours": {
+          "type": "integer",
+          "description": "Data retention window in hours (default 720, i.e. 30 days)"
+        },
+        "separate_audio_streams": {
+          "type": "boolean",
+          "description": "Capture per-participant audio"
+        },
+        "separate_video_streams": {
+          "type": "boolean",
+          "description": "Capture one video file per participant. Opt-in only: leave unset unless the user explicitly asked for per-participant video"
+        },
+        "agent_config_id": {
+          "type": "string",
+          "description": "Attach a MIA conversational AI agent"
+        },
+        "live_transcript_webhook_url": {
+          "type": "string",
+          "description": "Webhook URL for live transcript chunks"
+        },
+        "custom_attributes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "String key/values echoed back in every webhook"
+        },
+        "idempotency_key": {
+          "type": "string",
+          "description": "UUID for safe retries (a retry returns the original bot, HTTP 507, no double charge)"
+        },
+        "google_login_domain": {
+          "type": "string",
+          "description": "Google Meet signed-in join: a Google Workspace domain already registered for signed-in bots on this account"
+        },
+        "teams_login_domain": {
+          "type": "string",
+          "description": "Microsoft Teams signed-in join: a domain already registered for signed-in Teams bots on this account. The bot uses that Microsoft account's name and picture, and each account runs one bot at a time"
+        },
+        "sign_in_email": {
+          "type": "string",
+          "description": "With google_login_domain or teams_login_domain: pin the join to one registered account instead of any available one"
+        },
+        "strict_email": {
+          "type": "boolean",
+          "description": "With sign_in_email: true (API default) fails if that account is busy; false falls back to another available account"
+        },
+        "zoom_zak_url": {
+          "type": "string",
+          "description": "Zoom signed-in join: HTTPS URL on your server that returns a fresh ZAK token"
+        },
+        "zoom_obf_url": {
+          "type": "string",
+          "description": "Zoom on-behalf-of join: HTTPS URL on your server that returns a fresh OBF token (the user must already be in the meeting)"
+        }
+      },
+      "required": [
+        "meeting_link"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "title": "Create a meeting bot",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": true
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "list_bots",
+    "title": "List bots",
+    "description": "List all bots on the account (paginated: bots[], hasNextPage, nextCursor).",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {}
+    },
+    "annotations": {
+      "title": "List bots",
+      "readOnlyHint": true
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "get_bot_status",
+    "title": "Get bot status",
+    "description": "Current bot status. Values: Joining, InWaitingRoom, InMeeting, Recording, Leaving, Stopped, NotAllowed, Denied, Error, Done.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "bot_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "bot_id"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "title": "Get bot status",
+      "readOnlyHint": true
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "get_bot_detail",
+    "title": "Get bot detail",
+    "description": "Full session metadata: platform, duration, timings, status timeline, transcript_id (canonical source), caption_file (for meeting_captions provider), original request payload.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "bot_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "bot_id"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "title": "Get bot detail",
+      "readOnlyHint": true
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "get_bot_summary",
+    "title": "Get AI meeting summary",
+    "description": "MeetStream's built-in AI summary of the meeting (no external LLM needed).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "bot_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "bot_id"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "title": "Get AI meeting summary",
+      "readOnlyHint": true
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "remove_bot",
+    "title": "Remove bot from meeting",
+    "description": "Make the bot leave an active meeting now. Recorded data is kept.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "bot_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "bot_id"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "title": "Remove bot from meeting",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "delete_bot_data",
+    "title": "Delete bot data (permanent)",
+    "description": "Permanently delete a bot's audio, video and transcripts. Irreversible. Fires a data_deletion webhook.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "bot_id": {
+          "type": "string"
+        },
+        "confirm": {
+          "type": "boolean",
+          "const": true,
+          "description": "Must be true to perform the permanent deletion"
+        }
+      },
+      "required": [
+        "bot_id",
+        "confirm"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "title": "Delete bot data (permanent)",
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "get_transcript",
+    "title": "Get transcript",
+    "description": "Fetch a bot's transcript by bot_id. Resolves transcript_id automatically (it is NOT in webhooks) via /detail → /transcriptions. With wait=true, polls until the transcript is ready or timeout_seconds passes. Segments have `speaker` and `transcript` fields.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "bot_id": {
+          "type": "string"
+        },
+        "wait": {
+          "type": "boolean",
+          "description": "Poll until the transcript is ready (up to timeout_seconds)"
+        },
+        "timeout_seconds": {
+          "type": "integer",
+          "description": "Max wait when wait=true (default 300)"
+        },
+        "raw": {
+          "type": "boolean",
+          "description": "Return raw provider output instead of processed segments"
+        }
+      },
+      "required": [
+        "bot_id"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "title": "Get transcript",
+      "readOnlyHint": true
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "list_transcriptions",
+    "title": "List transcription runs",
+    "description": "All transcription runs for a bot: transcript_id, provider, status, presigned download_urls (valid 1h).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "bot_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "bot_id"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "title": "List transcription runs",
+      "readOnlyHint": true
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "transcribe_audio",
+    "title": "Run / re-run transcription",
+    "description": "Start a (re-)transcription of a bot's recorded audio with a chosen post-call provider. Useful to try a different provider or language after the meeting.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "bot_id": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string",
+          "enum": [
+            "deepgram",
+            "assemblyai",
+            "sarvam",
+            "meetstream",
+            "jigsawstack"
+          ],
+          "default": "deepgram"
+        },
+        "language": {
+          "type": "string"
+        },
+        "callback_url": {
+          "type": "string",
+          "description": "Webhook to notify when done"
+        }
+      },
+      "required": [
+        "bot_id"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "title": "Run / re-run transcription",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "get_media_urls",
+    "title": "Get recording URLs",
+    "description": "Presigned S3 URLs for recorded media. kind=audio (valid 1h), video (valid 10min), audio_streams / video_streams (per-participant; require separate_*_streams at creation), screenshots.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "bot_id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "audio",
+            "video",
+            "audio_streams",
+            "video_streams",
+            "screenshots"
+          ],
+          "default": "audio"
+        }
+      },
+      "required": [
+        "bot_id"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "title": "Get recording URLs",
+      "readOnlyHint": true
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "get_participants",
+    "title": "Get participants",
+    "description": "Participants detected in the meeting (displayName, fullName, status, stream ids).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "bot_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "bot_id"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "title": "Get participants",
+      "readOnlyHint": true
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "get_chats",
+    "title": "Get in-meeting chat",
+    "description": "Chat messages captured during the meeting.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "bot_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "bot_id"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "title": "Get in-meeting chat",
+      "readOnlyHint": true
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "get_speaker_timeline",
+    "title": "Get speaker timeline",
+    "description": "Who spoke and when (chunk timeline with speaker ids/names).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "bot_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "bot_id"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "title": "Get speaker timeline",
+      "readOnlyHint": true
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "send_chat_message",
+    "title": "Send chat message into the meeting",
+    "description": "Post a chat message into the live meeting through the bot.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "bot_id": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "bot_id",
+        "message"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "title": "Send chat message into the meeting",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": true
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "send_image",
+    "title": "Show an image in the meeting",
+    "description": "Display an image/GIF as the bot's video frame. img_url must be PUBLIC.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "bot_id": {
+          "type": "string"
+        },
+        "img_url": {
+          "type": "string"
+        },
+        "display_duration_seconds": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "bot_id",
+        "img_url"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "title": "Show an image in the meeting",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": true
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "list_calendar_events",
+    "title": "List calendar events",
+    "description": "Upcoming events from the Google Calendars connected to this MeetStream account.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {}
+    },
+    "annotations": {
+      "title": "List calendar events",
+      "readOnlyHint": true
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "schedule_calendar_bot",
+    "title": "Schedule / unschedule a calendar bot",
+    "description": "action=schedule sends a bot to a specific calendar event; action=unschedule removes it.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "event_id": {
+          "type": "string"
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "schedule",
+            "unschedule"
+          ],
+          "default": "schedule"
+        }
+      },
+      "required": [
+        "event_id"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "title": "Schedule / unschedule a calendar bot",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": true
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "webhook_events_guide",
+    "title": "Webhook events guide",
+    "description": "Reference for MeetStream webhook events: envelope shape (event and bot_event), the two-layer bot.stopped terminal model, status codes, and streaming-provider caveats.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {}
+    },
+    "annotations": {
+      "title": "Webhook events guide",
+      "readOnlyHint": true
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  }
+]

@@ -1,0 +1,39 @@
+MeetStream webhook model (checked against 4,139 captured production deliveries, June 2026):
+
+Envelope: events POST to your callback_url. Every delivery carries the name under the "event" key,
+and most also carry a "bot_event" key with the specific name. Every event carries a timestamp.
+{ "event": "bot.stopped", "bot_event": "bot.notallowed", "bot_id": "...", "bot_status": "NotAllowed",
+  "message": "Failed: Not admitted to meeting", "status_code": 500, "timestamp": "...",
+  "custom_attributes": {...} }
+status_code: 200 success, 500 failure.
+
+Lifecycle: bot.joining -> bot.in_waiting_room -> bot.inmeeting -> bot.recording -> bot.leaving
+-> ONE terminal delivery. On Zoom, bot.recording_permission_allowed / _denied can fire before bot.recording.
+
+TERMINAL, two layers: every ending arrives once with event = "bot.stopped". Read bot_event for why:
+  bot.stopped     clean exit                   status_code 200   bot_status Stopped
+  bot.kicked      removed by a participant     status_code 200   bot_status Stopped
+  bot.notallowed  lobby / waiting-room timeout status_code 500   bot_status NotAllowed
+  bot.denied      host refused entry           status_code 500   bot_status Denied
+  bot.failed      unexpected error             usually 500       bot_status FAILED, Failed or ERROR
+Branch on bot_event, not bot_status: a kick and a clean exit both report bot_status "Stopped",
+and bot_status casing is not consistent.
+
+Post-call: manifest.completed -> audio.processed -> transcription.processed (or transcription.failed
+with 500, or transcription.skipped) -> video.processed (only when video was recorded) -> bot.done
+(200: the pipeline finished; check the individual artifact events for success).
+STREAMING-ONLY providers (deepgram_streaming, assemblyai_streaming, jigsawstack_streaming,
+meetstream_streaming, meeting_captions) produce no post-call transcript, so no
+transcription.processed. bot.done still fires. A post-call transcript fetch for them returns 202
+indefinitely, so cap any polling.
+
+Other events you may receive: bot.scheduled, bot.uploading, bot.transcriptionready, audio.skipped,
+manifest.skipped, participant_events.join and participant_events.leave (no status_code), and
+data_deletion (no custom_attributes).
+
+transcript_id is NOT in any webhook. Resolve it via GET /bots/{id}/detail
+(bot_details.transcript_id), the create_bot response, or GET /bots/{id}/transcriptions.
+The get_transcript tool does this automatically.
+
+Handler rules: return HTTP 2xx fast and process async; de-duplicate on
+{bot_id, event, bot_event, timestamp}.
