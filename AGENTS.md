@@ -55,7 +55,7 @@ Add to `~/.codeium/windsurf/mcp_config.json`:
 
 ### Claude (desktop and web)
 
-Customize -> Connectors -> + -> Add custom connector. Name it `meetstream` and set the URL to `https://mcp.meetstream.ai/mcp?key=YOUR_MEETSTREAM_API_KEY`, leaving the OAuth fields blank. Claude's custom connectors cannot send a custom auth header, so the key goes in the URL; give each person their own key so it can be revoked individually.
+Customize -> Connectors -> + -> Add custom connector. Name it `meetstream`, set the URL to `https://mcp.meetstream.ai/mcp`, leave the OAuth fields blank and click Connect. Claude opens app.meetstream.ai: sign in and click Allow, and the dashboard creates an API key for that connection (delete it on the API keys page to disconnect). If OAuth is not an option, `https://mcp.meetstream.ai/mcp?key=YOUR_MEETSTREAM_API_KEY` still works, since Claude's custom connectors cannot send a custom auth header; give each person their own key so it can be revoked individually.
 
 ### Codex
 
