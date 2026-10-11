@@ -9,8 +9,8 @@ Claude Code does not read `AGENTS.md` natively, so this file imports it. Everyth
 Install this server:
 
 ```sh
-claude mcp add --transport http meetstream https://mcp.meetstream.ai/mcp \
-  --header "Authorization: Bearer $MEETSTREAM_API_KEY"
+claude mcp add --transport http meetstream https://mcp.meetstream.ai/mcp
+# then /mcp -> Authenticate, sign in at app.meetstream.ai and click Allow
 ```
 
 Separately, the [MeetStream Claude plugin](https://github.com/meetstream-ai/claude-plugin) adds skills for notetakers, sales coaching, calendar automation and scaffolding. It ships **skills only** and does not include the MCP server, so the two are complementary rather than alternatives:
