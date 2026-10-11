@@ -4,13 +4,15 @@
 
 Two ways to run it:
 
-- **Local (stdio)** - the default, `npx @meetstream/mcp`. Your MCP client launches it as a subprocess; nothing to host.
-- **Remote (Streamable HTTP)** - `https://mcp.meetstream.ai/mcp`. A hosted, multi-tenant endpoint you can add by URL, no local install. Sign in with OAuth from your client, or send an API key (see [Remote server](#remote-server-streamable-http) below).
+- **Remote (Streamable HTTP)** - the default, `https://mcp.meetstream.ai/mcp`. A hosted, multi-tenant endpoint you add by URL, with nothing to install. Sign in with OAuth from your client, or send an API key (see [Remote server](#remote-server-streamable-http) below).
+- **Local (stdio)** - the `meetstream-mcp` binary, built from [`go/`](./go). Your MCP client launches it as a subprocess, and the key stays on your machine.
 
 ```
-Local:   Claude/MCP client ──stdio (subprocess)──► @meetstream/mcp ──HTTPS + API key──► api.meetstream.ai
-Remote:  Claude/MCP client ──HTTPS + your key───► mcp.meetstream.ai ──HTTPS + your key──► api.meetstream.ai
+Remote:  Claude/MCP client ──HTTPS + OAuth or key──► mcp.meetstream.ai ──HTTPS + your key──► api.meetstream.ai
+Local:   Claude/MCP client ──stdio (subprocess)────► meetstream-mcp ────HTTPS + API key───► api.meetstream.ai
 ```
+
+Both run the same Go server. The old Node package `@meetstream/mcp` on npm is frozen at 0.3.0 and is no longer updated: it predates the current `create_bot` defaults and fixes, so do not use `npx @meetstream/mcp`.
 
 ---
 
@@ -20,11 +22,19 @@ Create one at **[app.meetstream.ai/api-keys](https://app.meetstream.ai/api-keys)
 
 ## 2. Install & configure
 
-The server reads the key from the **`MEETSTREAM_API_KEY`** environment variable - you set it once in your MCP client's config and every tool call uses it automatically.
+Using the hosted server? Skip to [Remote server](#remote-server-streamable-http): add the URL and sign in. The rest of this section is for running it locally.
+
+Install the binary (needs [Go](https://go.dev/dl/) 1.25 or later):
+```bash
+go install github.com/meetstream-ai/meetstream-mcp/go/cmd/meetstream-mcp@latest
+# installs to $(go env GOPATH)/bin/meetstream-mcp
+```
+
+The local server reads the key from the **`MEETSTREAM_API_KEY`** environment variable - you set it once in your MCP client's config and every tool call uses it automatically. Desktop apps often do not see your shell's `PATH`, so give them the binary's absolute path (`$(go env GOPATH)/bin/meetstream-mcp`, for example `/Users/you/go/bin/meetstream-mcp`).
 
 ### Claude Code (CLI)
 ```bash
-claude mcp add meetstream --env MEETSTREAM_API_KEY=ms_XXXX -- npx -y @meetstream/mcp
+claude mcp add meetstream --env MEETSTREAM_API_KEY=ms_XXXX -- meetstream-mcp
 ```
 
 ### Claude Desktop
@@ -33,8 +43,7 @@ Edit `claude_desktop_config.json` (Settings → Developer → Edit Config):
 {
   "mcpServers": {
     "meetstream": {
-      "command": "npx",
-      "args": ["-y", "@meetstream/mcp"],
+      "command": "/Users/you/go/bin/meetstream-mcp",
       "env": { "MEETSTREAM_API_KEY": "ms_XXXX" }
     }
   }
@@ -48,8 +57,7 @@ Settings → **Cursor Settings → MCP → Add new global MCP server**, or edit 
 {
   "mcpServers": {
     "meetstream": {
-      "command": "npx",
-      "args": ["-y", "@meetstream/mcp"],
+      "command": "/Users/you/go/bin/meetstream-mcp",
       "env": { "MEETSTREAM_API_KEY": "ms_XXXX" }
     }
   }
@@ -57,10 +65,10 @@ Settings → **Cursor Settings → MCP → Add new global MCP server**, or edit 
 ```
 
 ### Windsurf
-Settings (`Cmd+,`) → **Cascade → MCP Servers → Add Server** - same `command`/`args`/`env` as above, written to `~/.codeium/windsurf/mcp_config.json`.
+Settings (`Cmd+,`) → **Cascade → MCP Servers → Add Server** - same `command`/`env` as above, written to `~/.codeium/windsurf/mcp_config.json`.
 
 ### Any other MCP client
-Point it at the stdio command `npx -y @meetstream/mcp` with `MEETSTREAM_API_KEY` set in the process environment. That's the entire integration surface - the server needs no other config.
+Point it at the stdio command `meetstream-mcp` with `MEETSTREAM_API_KEY` set in the process environment. That's the entire integration surface - the server needs no other config.
 
 ### Verify it's connected
 Ask your client something like *"list my meetstream bots"* - if it returns data (or a clean empty list) instead of an error, auth is working. A misconfigured key surfaces as a tool error: *"MEETSTREAM_API_KEY is not set..."* or a 401 from the API.
@@ -147,7 +155,7 @@ Every tool description and the `webhook_events_guide` bake in **live-verified gr
 
 ## Remote server (Streamable HTTP)
 
-`https://mcp.meetstream.ai/mcp` - a hosted, multi-tenant [Streamable HTTP](https://modelcontextprotocol.io) endpoint. No `npx`, no local Node, no per-machine install.
+`https://mcp.meetstream.ai/mcp` - a hosted, multi-tenant [Streamable HTTP](https://modelcontextprotocol.io) endpoint. Nothing to install on your machine.
 
 ### Sign in with OAuth (no key to copy)
 
@@ -185,7 +193,7 @@ Clients that predate Streamable HTTP (the 2024-11-05 HTTP+SSE transport) connect
 
 The server holds **no API key of its own**: each request (or SSE session) carries the caller's key or an OAuth token that wraps it. A request with no credentials gets a `401` with setup instructions and a `WWW-Authenticate` header pointing OAuth clients at the sign-in flow. Streamable HTTP is stateless, so the service scales horizontally with no shared state; OAuth tokens are encrypted, self-contained values, so there is no token database either.
 
-The hosted server runs the Go implementation in [`go/`](./go) (one shared server instance, about 1.7 ms of CPU per request). The Node implementation in `src/` remains the `npx` / stdio package.
+The server is the Go implementation in [`go/`](./go): one shared server instance, about 1.7 ms of CPU per request. The same binary serves stdio (local) and HTTP (hosted). The Node implementation was removed from `main`; its last version is the [`node-v0.3.3`](https://github.com/meetstream-ai/meetstream-mcp/tree/node-v0.3.3) tag.
 
 **Self-hosting?** See [`deploy/`](./deploy), or:
 ```bash
@@ -200,7 +208,7 @@ To enable OAuth on your own deployment set `MCP_OAUTH_MODE=paste`, `MCP_PUBLIC_U
 |---------|-----|
 | Tool call returns "MEETSTREAM_API_KEY is not set" | Add `MEETSTREAM_API_KEY` to the `env` block in your MCP client config, then restart the client |
 | Tool call returns a 401 error | Your key is invalid or revoked - generate a new one at [app.meetstream.ai/api-keys](https://app.meetstream.ai/api-keys) |
-| Client shows "meetstream" server failed to start | Run `npx -y @meetstream/mcp` directly in a terminal - errors will print to stderr |
+| Client shows "meetstream" server failed to start | Run `MEETSTREAM_API_KEY=ms_XXXX meetstream-mcp` in a terminal - errors print to stderr. If the client cannot find the binary, give it the absolute path (`$(go env GOPATH)/bin/meetstream-mcp`) |
 | `get_transcript` returns `ready: false` | The meeting hasn't finished processing yet, or (for streaming providers) there is no post-call transcript - check `get_bot_status` first |
 | Calendar tools return empty/errors | No calendar is connected yet - connect one via `meetstream calendar connect` in the [CLI](https://github.com/meetstream-ai/meetstream-cli) first |
 | Remote server (`mcp.meetstream.ai`) returns 401 | Sign in through your client (OAuth), or send `Authorization: Bearer <key>` / `X-MeetStream-Api-Key` - the remote server has no key of its own |
@@ -208,9 +216,10 @@ To enable OAuth on your own deployment set `MCP_OAUTH_MODE=paste`, `MCP_PUBLIC_U
 ## Development
 
 ```bash
-npm install
-npm test        # Node: spawns the real stdio server and speaks JSON-RPC to it end-to-end
-cd go && go test -race ./...   # Go: HTTP, OAuth, SSE and real-client tests
+cd go
+go test -race ./...                       # HTTP, OAuth, SSE, payload and real-client tests; no key, no network
+MEETSTREAM_API_KEY=ms_... go run ./cmd/meetstream-mcp        # stdio
+PORT=3000 go run ./cmd/meetstream-mcp http                   # Streamable HTTP + legacy SSE on :3000
 ```
 
 ---

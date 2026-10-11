@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Guidance for AI coding agents working in this repository. This repo **is** the MeetStream MCP server (`@meetstream/mcp`).
+Guidance for AI coding agents working in this repository. This repo **is** the MeetStream MCP server (Go, in `go/`).
 
 ## Always use the MeetStream MCP
 
@@ -69,11 +69,14 @@ bearer_token_env_var = "MEETSTREAM_API_KEY"
 
 ### Run it locally instead
 
-Any client that speaks stdio can run the server straight from npm, which keeps the key on your machine:
+Any client that speaks stdio can run the Go binary, which keeps the key on your machine:
 
 ```sh
-MEETSTREAM_API_KEY=ms_... npx -y @meetstream/mcp
+go install github.com/meetstream-ai/meetstream-mcp/go/cmd/meetstream-mcp@latest
+MEETSTREAM_API_KEY=ms_... meetstream-mcp
 ```
+
+Do not use `npx @meetstream/mcp`. That npm package is the old Node server, frozen at 0.3.0, and it predates the current defaults.
 
 ### Use the MCP before
 
@@ -84,48 +87,50 @@ MEETSTREAM_API_KEY=ms_... npx -y @meetstream/mcp
 
 ## Working in this repo
 
-Node **>= 18.17**, ESM (`"type": "module"`), zero build step. Source runs as written.
+The server is Go (**1.25+**) and lives in `go/`. There is no other implementation: the Node server was removed from `main` after the `node-v0.3.3` tag. There is no CI; production is built and deployed by hand (see `deploy/README.md`).
 
 ```sh
-npm install
-
-npm start            # stdio server - what MCP clients spawn
-npm run start:http   # Streamable HTTP server on PORT (default 3000)
-npm test             # node --test over test/*.test.js
+cd go
+go test -race ./...                                      # run before every commit
+go run ./cmd/meetstream-mcp                              # stdio server - what MCP clients spawn
+PORT=3000 go run ./cmd/meetstream-mcp http               # Streamable HTTP + legacy SSE on :3000
 ```
 
-`npm test` needs **no API key and no network**. `test/smoke.test.js` spawns the real stdio binary and speaks JSON-RPC to it; `test/http.test.js` exercises the HTTP transport. Run it before every commit.
+`go test` needs **no API key and no network**. It covers `create_bot` payloads, HTTP behaviour and every auth method, the OAuth flows, and real MCP clients over Streamable HTTP and legacy SSE.
 
 To exercise a tool against the live API, set a key and drive the stdio server:
 
 ```sh
 export MEETSTREAM_API_KEY=ms_...
-echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | node bin/meetstream-mcp.js
+echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | go run ./cmd/meetstream-mcp
 ```
 
 ### Layout
 
 | Path | Purpose |
 |---|---|
-| `bin/meetstream-mcp.js` | stdio entry point |
-| `bin/meetstream-mcp-http.js` | Streamable HTTP entry point |
-| `src/server.js` | tool definitions and registration |
-| `src/api.js` | REST client, base URL, auth header |
-| `src/http-server.js` | HTTP transport, per-request key extraction |
-| `src/telemetry.js` | PostHog, opt-out aware |
-| `test/` | `node --test` suites |
+| `go/cmd/meetstream-mcp/main.go` | entry point: `stdio` (default), `http`, `version`, `gen-secret`; every setting is listed at the top |
+| `go/internal/tools/tools.json` | tool names, descriptions and input schemas, exactly as `tools/list` returns them |
+| `go/internal/tools/tools.go` | one handler per tool |
+| `go/internal/meetstream/` | REST client and the `create_bot` payload builder (`payload.go`: audio-only, speaker view and timeout defaults) |
+| `go/internal/server/` | Streamable HTTP and legacy SSE transports, per-request key extraction |
+| `go/internal/oauth/` | OAuth 2.1 authorization server (paste and dashboard modes) |
+| `go/internal/seal/` | AES-256-GCM sealing for OAuth values; must stay compatible with `lib/mcp-grant.ts` in the dashboard |
+| `go/internal/telemetry/` | PostHog, opt-out aware |
+| `deploy/` | VM setup, nginx config and the deploy runbook |
 
-Adding a tool means editing `src/server.js` (schema + handler) and `src/api.js` (the call), then extending `test/smoke.test.js` so the tool count assertion stays honest.
+Adding a tool means adding its definition to `tools.json` and a handler with the same name in `tools.go` (the server will not start if the two disagree), then updating the tool count in `go/internal/server/server_test.go` and the README.
 
 ### Environment
 
 | Variable | Default | Notes |
 |---|---|---|
-| `MEETSTREAM_API_KEY` | - | Required for real calls. Get one at https://app.meetstream.ai/api-key |
+| `MEETSTREAM_API_KEY` | - | Required for real calls in stdio mode. Get one at https://app.meetstream.ai/api-key |
 | `MEETSTREAM_API_URL` | `https://api.meetstream.ai/api/v1` | Point at staging here |
-| `PORT` | `3000` | HTTP transport only |
-| `HOST` | - | HTTP transport bind address |
+| `PORT` | `8080` | HTTP mode only |
+| `HOST` | `0.0.0.0` | HTTP mode bind address |
 | `MCP_ALLOWED_HOSTS` | - | Comma-separated allowlist, DNS-rebinding protection |
+| `MCP_OAUTH_MODE` | `off` | `paste` or `dashboard`; the other OAuth settings are listed in `main.go` |
 | `MEETSTREAM_TELEMETRY` | on | Set `0`/`false` to disable |
 | `DO_NOT_TRACK` | - | Honoured, disables telemetry |
 
@@ -159,7 +164,7 @@ These are live-verified. Do not "fix" code that follows them.
 
 ## Before you finish
 
-- `npm test` passes.
+- `cd go && go test -race ./...` passes.
 - Any new tool is registered, tested, and reflected in the README's tool count.
 - State which MCP tools or docs you relied on, what changed, and what you did not verify.
 
