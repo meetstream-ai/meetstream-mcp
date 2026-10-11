@@ -3,7 +3,7 @@
   "name": "io.github.meetstream-ai/meetstream-mcp",
   "title": "MeetStream",
   "description": "Meeting bots for Zoom, Google Meet and Teams: record, transcribe, summarize, run voice agents.",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "websiteUrl": "https://docs.meetstream.ai/build-with-ai/meetstream-mcp-server",
   "repository": {
     "url": "https://github.com/meetstream-ai/meetstream-mcp",
@@ -16,8 +16,21 @@
       "headers": [
         {
           "name": "Authorization",
-          "description": "Your MeetStream API key as a bearer token, in the form 'Bearer ms_...'. Create a key at https://app.meetstream.ai/api-key. The hosted server is multi-tenant and stores no key of its own; each request carries its own.",
-          "isRequired": true,
+          "description": "Optional. Clients that support MCP authorization sign in with OAuth and need no header. Otherwise send your MeetStream API key as 'Bearer ms_...' (create one at https://app.meetstream.ai/api-key). The server is multi-tenant and stores no key of its own.",
+          "isRequired": false,
+          "isSecret": true,
+          "format": "string"
+        }
+      ]
+    },
+    {
+      "type": "sse",
+      "url": "https://mcp.meetstream.ai/sse",
+      "headers": [
+        {
+          "name": "Authorization",
+          "description": "Optional. Clients that support MCP authorization sign in with OAuth and need no header. Otherwise send your MeetStream API key as 'Bearer ms_...' (create one at https://app.meetstream.ai/api-key). The server is multi-tenant and stores no key of its own.",
+          "isRequired": false,
           "isSecret": true,
           "format": "string"
         }

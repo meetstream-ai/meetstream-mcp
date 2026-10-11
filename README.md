@@ -1,77 +1,99 @@
 # MeetStream MCP Server
 
-**Give Claude - or any MCP-compatible client - direct access to the MeetStream meeting-bot API.** The server authenticates to MeetStream with your API key and exposes the full bot lifecycle (create, record, transcribe, summarize, interact live, manage calendar auto-join) as 19 callable tools.
-
-Two ways to run it:
-
-- **Remote (Streamable HTTP)** - the default, `https://mcp.meetstream.ai/mcp`. A hosted, multi-tenant endpoint you add by URL, with nothing to install. Sign in with OAuth from your client, or send an API key (see [Remote server](#remote-server-streamable-http) below).
-- **Local (stdio)** - the `meetstream-mcp` binary, built from [`go/`](./go). Your MCP client launches it as a subprocess, and the key stays on your machine.
+**Give Claude - or any MCP-compatible client - direct access to the MeetStream meeting-bot API.** Add one URL, sign in, and your assistant can run the full bot lifecycle (create, record, transcribe, summarize, interact live, manage calendar auto-join) through 19 tools.
 
 ```
-Remote:  Claude/MCP client ──HTTPS + OAuth or key──► mcp.meetstream.ai ──HTTPS + your key──► api.meetstream.ai
-Local:   Claude/MCP client ──stdio (subprocess)────► meetstream-mcp ────HTTPS + API key───► api.meetstream.ai
+https://mcp.meetstream.ai/mcp
 ```
 
-Both run the same Go server. The old Node package `@meetstream/mcp` on npm is frozen at 0.3.0 and is no longer updated: it predates the current `create_bot` defaults and fixes, so do not use `npx @meetstream/mcp`.
+MeetStream hosts the server. There is nothing to install or run on your machine, and it is always the current version.
+
+```
+Claude/MCP client ──HTTPS (OAuth sign-in or API key)──► mcp.meetstream.ai ──► api.meetstream.ai
+```
+
+> The old npm package `@meetstream/mcp` (`npx @meetstream/mcp`) is frozen at 0.3.0 and no longer maintained. It predates the current `create_bot` defaults and fixes. Use the hosted URL instead.
 
 ---
 
-## 1. Get an API key
+## Connect
 
-Create one at **[app.meetstream.ai/api-keys](https://app.meetstream.ai/api-keys)**. This is the credential the server uses to authenticate every request - internally it sends `Authorization: Token <your-key>` on every call to `https://api.meetstream.ai/api/v1`. There's no separate MCP account: **the API key *is* the authentication.** With the hosted server you can skip this step and [sign in with OAuth](#sign-in-with-oauth-no-key-to-copy) instead; the dashboard then creates a key for that connection.
+Add the URL with **no key**. Your client finds MeetStream's sign-in, opens `app.meetstream.ai` in your browser, and you click **Allow**. The dashboard creates an API key for that connection; to disconnect, delete the key named after the app on the [API keys page](https://app.meetstream.ai/api-key).
 
-## 2. Install & configure
-
-Using the hosted server? Skip to [Remote server](#remote-server-streamable-http): add the URL and sign in. The rest of this section is for running it locally.
-
-Install the binary (needs [Go](https://go.dev/dl/) 1.25 or later):
+### Claude Code
 ```bash
-go install github.com/meetstream-ai/meetstream-mcp/go/cmd/meetstream-mcp@latest
-# installs to $(go env GOPATH)/bin/meetstream-mcp
+claude mcp add --transport http meetstream https://mcp.meetstream.ai/mcp
+# then run /mcp in Claude Code and choose Authenticate
 ```
 
-The local server reads the key from the **`MEETSTREAM_API_KEY`** environment variable - you set it once in your MCP client's config and every tool call uses it automatically. Desktop apps often do not see your shell's `PATH`, so give them the binary's absolute path (`$(go env GOPATH)/bin/meetstream-mcp`, for example `/Users/you/go/bin/meetstream-mcp`).
+### Claude (web and desktop)
+Customize → **Connectors** → **+** → **Add custom connector**. Name it `meetstream`, set the URL to `https://mcp.meetstream.ai/mcp`, leave the OAuth fields blank, and click **Connect**.
 
-### Claude Code (CLI)
-```bash
-claude mcp add meetstream --env MEETSTREAM_API_KEY=ms_XXXX -- meetstream-mcp
-```
-
-### Claude Desktop
-Edit `claude_desktop_config.json` (Settings → Developer → Edit Config):
+### Cursor
+`~/.cursor/mcp.json` (or install the [MeetStream Cursor plugin](https://github.com/meetstream-ai/meetstream-cursor-plugin)), then click **Connect** next to `meetstream` in Cursor Settings → MCP:
 ```json
 {
   "mcpServers": {
-    "meetstream": {
-      "command": "/Users/you/go/bin/meetstream-mcp",
-      "env": { "MEETSTREAM_API_KEY": "ms_XXXX" }
-    }
+    "meetstream": { "url": "https://mcp.meetstream.ai/mcp" }
   }
 }
 ```
-Restart Claude Desktop after saving.
 
-### Cursor
-Settings → **Cursor Settings → MCP → Add new global MCP server**, or edit `~/.cursor/mcp.json`:
+### VS Code
+`.vscode/mcp.json`, then start the server and sign in when VS Code asks:
 ```json
 {
-  "mcpServers": {
-    "meetstream": {
-      "command": "/Users/you/go/bin/meetstream-mcp",
-      "env": { "MEETSTREAM_API_KEY": "ms_XXXX" }
-    }
+  "servers": {
+    "meetstream": { "type": "http", "url": "https://mcp.meetstream.ai/mcp" }
   }
 }
 ```
 
 ### Windsurf
-Settings (`Cmd+,`) → **Cascade → MCP Servers → Add Server** - same `command`/`env` as above, written to `~/.codeium/windsurf/mcp_config.json`.
+`~/.codeium/windsurf/mcp_config.json`. Cascade asks you to sign in on first use. If your Windsurf version cannot finish the sign-in, use an API key header (below):
+```json
+{
+  "mcpServers": {
+    "meetstream": { "serverUrl": "https://mcp.meetstream.ai/mcp" }
+  }
+}
+```
+
+### Codex
+`~/.codex/config.toml`, then run `codex mcp login meetstream`:
+```toml
+[mcp_servers.meetstream]
+url = "https://mcp.meetstream.ai/mcp"
+```
 
 ### Any other MCP client
-Point it at the stdio command `meetstream-mcp` with `MEETSTREAM_API_KEY` set in the process environment. That's the entire integration surface - the server needs no other config.
+Point it at `https://mcp.meetstream.ai/mcp` as a remote (Streamable HTTP) server. Clients that support MCP authorization sign in by themselves: protected resource metadata (RFC 9728), authorization server metadata (RFC 8414), dynamic client registration (RFC 7591) and the authorization code flow with PKCE. Access tokens last an hour and refresh automatically.
 
-### Verify it's connected
-Ask your client something like *"list my meetstream bots"* - if it returns data (or a clean empty list) instead of an error, auth is working. A misconfigured key surfaces as a tool error: *"MEETSTREAM_API_KEY is not set..."* or a 401 from the API.
+### Or use an API key
+
+For clients without OAuth, or for scripts and CI, create a key at **[app.meetstream.ai/api-keys](https://app.meetstream.ai/api-keys)** and send it as a header:
+
+```json
+{
+  "mcpServers": {
+    "meetstream": {
+      "url": "https://mcp.meetstream.ai/mcp",
+      "headers": { "Authorization": "Bearer ms_YOUR_API_KEY" }
+    }
+  }
+}
+```
+
+- Claude Code: `claude mcp add --transport http meetstream https://mcp.meetstream.ai/mcp --header "Authorization: Bearer $MEETSTREAM_API_KEY"`
+- Codex: add `bearer_token_env_var = "MEETSTREAM_API_KEY"` to the `[mcp_servers.meetstream]` block.
+- `X-MeetStream-Api-Key: <key>` works too. For connector UIs that cannot set headers, `https://mcp.meetstream.ai/mcp?key=<key>`. The server never logs query strings, but a key in a URL can end up in client-side history, so prefer OAuth or a header.
+
+### Older clients (HTTP+SSE)
+
+`/mcp` is the main endpoint, and its replies already stream as server-sent events (`text/event-stream`). Clients that only speak the older 2024-11-05 HTTP+SSE transport connect to `https://mcp.meetstream.ai/sse` with the same sign-in or key options. The stream's first event names the per-session message endpoint; the key never appears in it.
+
+### Check it is connected
+Ask your client something like *"list my meetstream bots"* - if it returns data (or a clean empty list) instead of an error, you are connected.
 
 ---
 
@@ -144,82 +166,31 @@ Every tool description and the `webhook_events_guide` bake in **live-verified gr
 - **`transcript_id` is never in a webhook payload** - `get_transcript` resolves it for you automatically instead of making the model guess.
 - Safe defaults everywhere: `automatic_leave` timeouts on every `create_bot` call, and `recording_permission_denied_timeout` floored at 60 (the API rejects lower values with a 400).
 
-## Configuration
-
-| Env var | Required | Purpose |
-|---------|----------|---------|
-| `MEETSTREAM_API_KEY` | ✅ yes (stdio mode) | Your API key - sent as `Authorization: Token <key>` on every request |
-| `MEETSTREAM_API_URL` | optional | Override the base URL (default `https://api.meetstream.ai/api/v1`) - useful for testing against a staging environment |
-
----
-
-## Remote server (Streamable HTTP)
-
-`https://mcp.meetstream.ai/mcp` - a hosted, multi-tenant [Streamable HTTP](https://modelcontextprotocol.io) endpoint. Nothing to install on your machine.
-
-### Sign in with OAuth (no key to copy)
-
-Add the URL with no key. Your MCP client discovers MeetStream's OAuth server, opens a browser page, and stores the token itself:
-
-```bash
-claude mcp add --transport http meetstream https://mcp.meetstream.ai/mcp
-# then run /mcp in Claude Code and choose Authenticate
-```
-
-In Claude (web or desktop), Cursor, VS Code and other OAuth-capable clients, add the same URL as a custom connector and click **Connect**. Under the hood this is the standard MCP authorization flow: protected resource metadata (RFC 9728), authorization server metadata (RFC 8414), dynamic client registration (RFC 7591) and the authorization code flow with PKCE. Access tokens last an hour and refresh automatically. To disconnect, delete the key named after the app on the [API keys page](https://app.meetstream.ai/api-key).
-
-### Or send your API key
-
-Every pre-OAuth method still works, unchanged:
-
-```json
-{
-  "mcpServers": {
-    "meetstream": {
-      "url": "https://mcp.meetstream.ai/mcp",
-      "headers": { "Authorization": "Bearer ms_YOUR_API_KEY" }
-    }
-  }
-}
-```
-
-`X-MeetStream-Api-Key: <key>` works too, and for clients whose connector UI cannot set headers, `https://mcp.meetstream.ai/mcp?key=<key>`. The server never logs query strings, but a key in a URL can still end up in client-side history, so prefer OAuth or a header where you can.
-
-### Legacy SSE transport
-
-Clients that predate Streamable HTTP (the 2024-11-05 HTTP+SSE transport) connect to `https://mcp.meetstream.ai/sse` with the same key options. The stream's first event names the per-session message endpoint; the key never appears in it.
-
-### How it works
+## How it works
 
 The server holds **no API key of its own**: each request (or SSE session) carries the caller's key or an OAuth token that wraps it. A request with no credentials gets a `401` with setup instructions and a `WWW-Authenticate` header pointing OAuth clients at the sign-in flow. Streamable HTTP is stateless, so the service scales horizontally with no shared state; OAuth tokens are encrypted, self-contained values, so there is no token database either.
 
-The server is the Go implementation in [`go/`](./go): one shared server instance, about 1.7 ms of CPU per request. The same binary serves stdio (local) and HTTP (hosted). The Node implementation was removed from `main`; its last version is the [`node-v0.3.3`](https://github.com/meetstream-ai/meetstream-mcp/tree/node-v0.3.3) tag.
-
-**Self-hosting?** See [`deploy/`](./deploy), or:
-```bash
-docker build -f go/Dockerfile -t meetstream-mcp go
-docker run -p 8080:8080 meetstream-mcp            # POST http://localhost:8080/mcp
-```
-To enable OAuth on your own deployment set `MCP_OAUTH_MODE=paste`, `MCP_PUBLIC_URL` and `MCP_OAUTH_SECRET` (generate one with `docker run --rm meetstream-mcp gen-secret`). All settings are listed at the top of [`go/cmd/meetstream-mcp/main.go`](./go/cmd/meetstream-mcp/main.go).
+The server is the Go implementation in [`go/`](./go): one shared server instance, about 1.7 ms of CPU per request.
 
 ## Troubleshooting
 
 | Symptom | Fix |
 |---------|-----|
-| Tool call returns "MEETSTREAM_API_KEY is not set" | Add `MEETSTREAM_API_KEY` to the `env` block in your MCP client config, then restart the client |
-| Tool call returns a 401 error | Your key is invalid or revoked - generate a new one at [app.meetstream.ai/api-keys](https://app.meetstream.ai/api-keys) |
-| Client shows "meetstream" server failed to start | Run `MEETSTREAM_API_KEY=ms_XXXX meetstream-mcp` in a terminal - errors print to stderr. If the client cannot find the binary, give it the absolute path (`$(go env GOPATH)/bin/meetstream-mcp`) |
+| Sign-in page says the link has expired | Sign-in links last 15 minutes. Start the connection again from your client |
+| `401` from `mcp.meetstream.ai` | Sign in through your client (OAuth), or send `Authorization: Bearer <key>` / `X-MeetStream-Api-Key` - the server has no key of its own |
+| Tool call returns a 401 from the API | The key is invalid or revoked (for OAuth connections, the key named after the app was deleted). Reconnect, or generate a new key at [app.meetstream.ai/api-keys](https://app.meetstream.ai/api-keys) |
 | `get_transcript` returns `ready: false` | The meeting hasn't finished processing yet, or (for streaming providers) there is no post-call transcript - check `get_bot_status` first |
 | Calendar tools return empty/errors | No calendar is connected yet - connect one via `meetstream calendar connect` in the [CLI](https://github.com/meetstream-ai/meetstream-cli) first |
-| Remote server (`mcp.meetstream.ai`) returns 401 | Sign in through your client (OAuth), or send `Authorization: Bearer <key>` / `X-MeetStream-Api-Key` - the remote server has no key of its own |
+| Your client only supports the old SSE transport | Use `https://mcp.meetstream.ai/sse` |
 
 ## Development
 
+For working on the server itself, not for connecting to it:
+
 ```bash
 cd go
-go test -race ./...                       # HTTP, OAuth, SSE, payload and real-client tests; no key, no network
-MEETSTREAM_API_KEY=ms_... go run ./cmd/meetstream-mcp        # stdio
-PORT=3000 go run ./cmd/meetstream-mcp http                   # Streamable HTTP + legacy SSE on :3000
+go test -race ./...                              # HTTP, OAuth, SSE, payload and real-client tests; no key, no network
+PORT=3000 go run ./cmd/meetstream-mcp http       # Streamable HTTP + legacy SSE on :3000
 ```
 
 ---
