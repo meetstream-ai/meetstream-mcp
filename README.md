@@ -16,7 +16,7 @@ Remote:  Claude/MCP client ──HTTPS + your key───► mcp.meetstream.ai 
 
 ## 1. Get an API key
 
-Create one at **[app.meetstream.ai/api-keys](https://app.meetstream.ai/api-keys)**. This is the credential the server uses to authenticate every request - internally it sends `Authorization: Token <your-key>` on every call to `https://api.meetstream.ai/api/v1`. There's no OAuth flow, no login step, no separate MCP account: **the API key *is* the authentication.**
+Create one at **[app.meetstream.ai/api-keys](https://app.meetstream.ai/api-keys)**. This is the credential the server uses to authenticate every request - internally it sends `Authorization: Token <your-key>` on every call to `https://api.meetstream.ai/api/v1`. There's no separate MCP account: **the API key *is* the authentication.** With the hosted server you can skip this step and [sign in with OAuth](#sign-in-with-oauth-no-key-to-copy) instead; the dashboard then creates a key for that connection.
 
 ## 2. Install & configure
 
