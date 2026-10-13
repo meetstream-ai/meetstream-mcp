@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 230" width="960" height="230" role="img" aria-labelledby="t d">
+  <title id="t">Connect MeetStream in 4 steps</title>
+  <desc id="d">1. Add https://mcp.meetstream.ai/mcp to your AI tool. 2. Click Connect or Authenticate. 3. Sign in at app.meetstream.ai and click Allow. 4. Ask your AI tool to list your MeetStream bots.</desc>
+  <style>
+    .card { fill: #ffffff; stroke: #d9dbd6; }
+    .num  { fill: #e0531f; }
+    .numt { fill: #ffffff; font: 700 15px -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .h    { fill: #16181d; font: 600 16px -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .p    { fill: #5a5f69; font: 400 13px -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .code { fill: #e0531f; font: 500 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .arrow { stroke: #b8bbb4; fill: none; stroke-width: 2; }
+    .head { fill: #b8bbb4; }
+    .where { fill: #8a8f98; font: 600 10px -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; letter-spacing: .08em; }
+    @media (prefers-color-scheme: dark) {
+      .card { fill: #161b22; stroke: #30363d; }
+      .h { fill: #e6edf3; }
+      .p { fill: #9da7b3; }
+      .code { fill: #ff8a5c; }
+      .num { fill: #ff7a45; }
+      .numt { fill: #0d1117; }
+      .arrow { stroke: #484f58; }
+      .head { fill: #484f58; }
+      .where { fill: #7d8590; }
+    }
+  </style>
+
+  <!-- step 1 -->
+  <rect class="card" x="8" y="8" width="210" height="214" rx="12"/>
+  <circle class="num" cx="40" cy="42" r="16"/><text class="numt" x="40" y="47" text-anchor="middle">1</text>
+  <text class="where" x="28" y="86">IN YOUR AI TOOL</text>
+  <text class="h" x="28" y="110">Add the URL</text>
+  <text class="code" x="28" y="138">mcp.meetstream.ai/mcp</text>
+  <text class="p" x="28" y="164">Do not add a key.</text>
+  <text class="p" x="28" y="184">Claude, Cursor, VS Code,</text>
+  <text class="p" x="28" y="202">Codex and others.</text>
+
+  <path class="arrow" d="M224 115 H 238"/><path class="head" d="M238 109 L 246 115 L 238 121 Z"/>
+
+  <!-- step 2 -->
+  <rect class="card" x="250" y="8" width="210" height="214" rx="12"/>
+  <circle class="num" cx="282" cy="42" r="16"/><text class="numt" x="282" y="47" text-anchor="middle">2</text>
+  <text class="where" x="270" y="86">IN YOUR AI TOOL</text>
+  <text class="h" x="270" y="110">Click Connect</text>
+  <text class="p" x="270" y="138">Or "Authenticate"</text>
+  <text class="p" x="270" y="158">(Claude Code: /mcp).</text>
+  <text class="p" x="270" y="184">Your browser opens</text>
+  <text class="p" x="270" y="202">app.meetstream.ai.</text>
+
+  <path class="arrow" d="M466 115 H 480"/><path class="head" d="M480 109 L 488 115 L 480 121 Z"/>
+
+  <!-- step 3 -->
+  <rect class="card" x="492" y="8" width="210" height="214" rx="12"/>
+  <circle class="num" cx="524" cy="42" r="16"/><text class="numt" x="524" y="47" text-anchor="middle">3</text>
+  <text class="where" x="512" y="86">IN YOUR BROWSER</text>
+  <text class="h" x="512" y="110">Sign in, click Allow</text>
+  <text class="p" x="512" y="138">MeetStream creates a</text>
+  <text class="p" x="512" y="158">key for this app. You</text>
+  <text class="p" x="512" y="178">do not see or copy it.</text>
+  <text class="p" x="512" y="202">The browser goes back.</text>
+
+  <path class="arrow" d="M708 115 H 722"/><path class="head" d="M722 109 L 730 115 L 722 121 Z"/>
+
+  <!-- step 4 -->
+  <rect class="card" x="734" y="8" width="218" height="214" rx="12"/>
+  <circle class="num" cx="766" cy="42" r="16"/><text class="numt" x="766" y="47" text-anchor="middle">4</text>
+  <text class="where" x="754" y="86">IN YOUR AI TOOL</text>
+  <text class="h" x="754" y="110">Ask</text>
+  <text class="p" x="754" y="138">"List my MeetStream</text>
+  <text class="p" x="754" y="158">bots." A list, or an</text>
+  <text class="p" x="754" y="178">empty list, means you</text>
+  <text class="p" x="754" y="198">are connected.</text>
+</svg>

@@ -8,8 +8,26 @@ https://mcp.meetstream.ai/mcp
 
 MeetStream hosts the server. There is nothing to install or run on your machine, and it is always the current version.
 
+## Quick start
+
+![Connect MeetStream in 4 steps: add the URL, click Connect, sign in and click Allow, then ask](assets/docs/connect-steps.svg)
+
+1. Add `https://mcp.meetstream.ai/mcp` to your AI tool. Do not add a key.
+2. Click **Connect** (in Claude Code: run `/mcp`, then choose **Authenticate**). Your browser opens `app.meetstream.ai`.
+3. Sign in to MeetStream, then click **Allow**. MeetStream creates an API key for this connection. You do not see or copy the key.
+4. Ask your AI tool: *"list my meetstream bots"*. A list, or an empty list, means that you are connected.
+
+The exact steps for each tool are in [Connect](#connect).
+
+### Which URL to use
+
+| URL | Use it for |
+|-----|------------|
+| `https://mcp.meetstream.ai/mcp` | **All current clients.** Streamable HTTP. The replies stream as server-sent events (SSE), so you do not need a separate SSE setting. |
+| `https://mcp.meetstream.ai/sse` | Only clients that support just the older HTTP+SSE transport (2024-11-05). The sign-in and the API key work the same way. |
+
 ```
-Claude/MCP client ──HTTPS (OAuth sign-in or API key)──► mcp.meetstream.ai ──► api.meetstream.ai
+Your AI tool ──HTTPS + OAuth sign-in──► mcp.meetstream.ai ──► api.meetstream.ai
 ```
 
 > The old npm package `@meetstream/mcp` (`npx @meetstream/mcp`) is frozen at 0.3.0 and no longer maintained. It predates the current `create_bot` defaults and fixes. Use the hosted URL instead.
@@ -18,7 +36,13 @@ Claude/MCP client ──HTTPS (OAuth sign-in or API key)──► mcp.meetstream
 
 ## Connect
 
-Add the URL with **no key**. Your client finds MeetStream's sign-in, opens `app.meetstream.ai` in your browser, and you click **Allow**. The dashboard creates an API key for that connection; to disconnect, delete the key named after the app on the [API keys page](https://app.meetstream.ai/api-key).
+Add the URL with **no key**. Your client finds MeetStream's sign-in, opens `app.meetstream.ai` in your browser, and you click **Allow**. The dashboard creates an API key for that connection, named `MCP · <app name> · <date> · <number>`. To disconnect, delete that key on the [API keys page](https://app.meetstream.ai/api-key).
+
+This is the page that opens in your browser. If you are not signed in to MeetStream, you sign in first, then you see this page:
+
+<p align="center"><img src="assets/docs/consent-allow.png" alt="MeetStream consent page: Connect Claude Code to MeetStream, with Cancel and Allow buttons" width="460"></p>
+
+The page shows the name of the app that asked to connect. If you do not recognize the app, click **Cancel**. The sign-in link is valid for 15 minutes.
 
 ### Claude Code
 ```bash
@@ -187,12 +211,8 @@ MeetStream runs the server; it is written in Go and its source is not published.
 
 Prefer a terminal? See the [MeetStream CLI](https://github.com/meetstream-ai/meetstream-cli). Docs: [docs.meetstream.ai](https://docs.meetstream.ai) · API spec: [openapi.json](https://docs.meetstream.ai/openapi.json) · Migrating from Recall.ai: [@meetstream/migrate](https://github.com/meetstream-ai/recall-meetstream-migration-kit)
 
+## Privacy and telemetry
+
+The hosted server records anonymous counts of which tools are called and whether each call succeeded. It never records your API key, OAuth tokens, meeting URLs, transcripts, or any other content. Server logs contain the request path only, never the query string.
+
 MIT © MeetStream.ai
-
-## Telemetry
-
-This server sends **anonymous** usage events (which tools are called, remote vs local) to help us improve MeetStream. It never sends your API key, meeting URLs, transcripts, or any content. Disable it any time:
-
-```bash
-export MEETSTREAM_TELEMETRY=0   # or the standard DO_NOT_TRACK=1
-```
