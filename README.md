@@ -170,7 +170,7 @@ Every tool description and the `webhook_events_guide` bake in **live-verified gr
 
 The server holds **no API key of its own**: each request (or SSE session) carries the caller's key or an OAuth token that wraps it. A request with no credentials gets a `401` with setup instructions and a `WWW-Authenticate` header pointing OAuth clients at the sign-in flow. Streamable HTTP is stateless, so the service scales horizontally with no shared state; OAuth tokens are encrypted, self-contained values, so there is no token database either.
 
-The server is the Go implementation in [`go/`](./go): one shared server instance, about 1.7 ms of CPU per request.
+MeetStream runs the server; it is written in Go and its source is not published. This repo holds the user docs and the [MCP Registry](https://registry.modelcontextprotocol.io) entry (`server.json`). To report a problem, open an issue here.
 
 ## Troubleshooting
 
@@ -182,16 +182,6 @@ The server is the Go implementation in [`go/`](./go): one shared server instance
 | `get_transcript` returns `ready: false` | The meeting hasn't finished processing yet, or (for streaming providers) there is no post-call transcript - check `get_bot_status` first |
 | Calendar tools return empty/errors | No calendar is connected yet - connect one via `meetstream calendar connect` in the [CLI](https://github.com/meetstream-ai/meetstream-cli) first |
 | Your client only supports the old SSE transport | Use `https://mcp.meetstream.ai/sse` |
-
-## Development
-
-For working on the server itself, not for connecting to it:
-
-```bash
-cd go
-go test -race ./...                              # HTTP, OAuth, SSE, payload and real-client tests; no key, no network
-PORT=3000 go run ./cmd/meetstream-mcp http       # Streamable HTTP + legacy SSE on :3000
-```
 
 ---
 

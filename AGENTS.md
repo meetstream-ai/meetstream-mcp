@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Guidance for AI coding agents working in this repository. This repo **is** the MeetStream MCP server (Go, in `go/`).
+Guidance for AI coding agents working in this repository. This repo holds the user docs and the MCP Registry entry for the hosted MeetStream MCP server at `https://mcp.meetstream.ai`. The server source is not in this repo.
 
 ## Always use the MeetStream MCP
 
@@ -77,52 +77,17 @@ Use `https://mcp.meetstream.ai/sse` with the same sign-in or key options. Everyt
 
 ## Working in this repo
 
-The server is Go (**1.25+**) and lives in `go/`. There is no other implementation: the Node server was removed from `main` after the `node-v0.3.3` tag. There is no CI. Production is built and deployed by hand; the runbook, VM scripts and nginx config are in the private `a private MeetStream repo` repo.
-
-```sh
-cd go
-go test -race ./...                                      # run before every commit
-PORT=3000 go run ./cmd/meetstream-mcp http               # Streamable HTTP + legacy SSE on :3000
-```
-
-`go test` needs **no API key and no network**. It covers `create_bot` payloads, HTTP behaviour and every auth method, the OAuth flows, and real MCP clients over Streamable HTTP and legacy SSE.
-
-To exercise a tool against the live API, set a key and drive the stdio server:
-
-```sh
-export MEETSTREAM_API_KEY=ms_...
-echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | go run ./cmd/meetstream-mcp
-```
-
-### Layout
+This repo has no server code. It holds:
 
 | Path | Purpose |
 |---|---|
-| `go/cmd/meetstream-mcp/main.go` | entry point: `http` (what production runs), `stdio` (for local testing only), `version`, `gen-secret`; every setting is listed at the top |
-| `go/internal/tools/tools.json` | tool names, descriptions and input schemas, exactly as `tools/list` returns them |
-| `go/internal/tools/tools.go` | one handler per tool |
-| `go/internal/meetstream/` | REST client and the `create_bot` payload builder (`payload.go`: audio-only, speaker view and timeout defaults) |
-| `go/internal/server/` | Streamable HTTP and legacy SSE transports, per-request key extraction |
-| `go/internal/oauth/` | OAuth 2.1 authorization server (paste and dashboard modes) |
-| `go/internal/seal/` | AES-256-GCM sealing for OAuth values; must stay compatible with `lib/mcp-grant.ts` in the dashboard |
-| `go/internal/telemetry/` | PostHog, opt-out aware |
+| `README.md` | how users connect: OAuth sign-in first, an API key as the fallback, `/sse` for clients that only speak the old HTTP+SSE transport, and the tool list |
+| `server.json` | the [MCP Registry](https://registry.modelcontextprotocol.io) entry: version, remote URLs, optional `Authorization` header |
+| `assets/` | icons for directory listings |
 
-Adding a tool means adding its definition to `tools.json` and a handler with the same name in `tools.go` (the server will not start if the two disagree), then updating the tool count in `go/internal/server/server_test.go` and the README.
+When you change the docs, keep the tool count and tool names in `README.md` the same as the live `tools/list` from `https://mcp.meetstream.ai/mcp`. Keep `server.json` valid against the registry schema it names in `$schema`.
 
-### Environment
-
-| Variable | Default | Notes |
-|---|---|---|
-| `MEETSTREAM_API_KEY` | - | Only for local stdio testing. Leave unset in HTTP mode: the hosted server holds no key. |
-| `MEETSTREAM_API_URL` | `https://api.meetstream.ai/api/v1` | Point at staging here |
-| `PORT` | `8080` | HTTP mode only |
-| `HOST` | `0.0.0.0` | HTTP mode bind address |
-| `MCP_ALLOWED_HOSTS` | - | Comma-separated allowlist, DNS-rebinding protection |
-| `MCP_OAUTH_MODE` | `off` | `paste` or `dashboard`; the other OAuth settings are listed in `main.go` |
-| `MEETSTREAM_TELEMETRY` | on | Set `0`/`false` to disable |
-| `DO_NOT_TRACK` | - | Honoured, disables telemetry |
-
-In HTTP mode the server is **multi-tenant and holds no key of its own**. Each request carries its own, via `Authorization: Bearer <key>`, `X-MeetStream-Api-Key: <key>`, or `?key=<key>`.
+Clients authenticate to the hosted server with an OAuth sign-in, `Authorization: Bearer <key>`, `X-MeetStream-Api-Key: <key>`, or `?key=<key>`. The server holds no key of its own.
 
 ## API rules that are easy to get wrong
 
@@ -152,8 +117,8 @@ These are live-verified. Do not "fix" code that follows them.
 
 ## Before you finish
 
-- `cd go && go test -race ./...` passes.
-- Any new tool is registered, tested, and reflected in the README's tool count.
+- `README.md` and the live `tools/list` agree on the tool count and names.
+- `server.json` is still valid against its schema.
 - State which MCP tools or docs you relied on, what changed, and what you did not verify.
 
 ## Related
