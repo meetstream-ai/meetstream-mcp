@@ -1,6 +1,6 @@
 # MeetStream MCP Server
 
-**Give Claude - or any MCP-compatible client - direct access to the MeetStream meeting-bot API.** Add one URL, sign in, and your assistant can run the full bot lifecycle (create, record, transcribe, summarize, interact live, manage calendar auto-join) through 19 tools.
+**Give Claude - or any MCP-compatible client - direct access to the MeetStream meeting-bot API.** Add one URL, sign in, and your assistant can run the full bot lifecycle (create, record, transcribe, interact live, raise and lower the bot's hand, pause recording, manage scheduled and calendar bots) through 28 tools.
 
 ```
 https://mcp.meetstream.ai/mcp
@@ -125,25 +125,28 @@ Ask your client something like *"list my meetstream bots"* - if it returns data 
 
 > "Join my standup at https://meet.google.com/abc-defg-hij, record it with Deepgram transcription, and give me the transcript when it's done."
 
-> "List my bots from today and give me the AI summary of the 3pm customer call."
+> "List my bots from today and give me the transcript of the 3pm customer call."
 
 > "Send 'we'll follow up by email' into the meeting the bot is in, then show them our logo."
+
+> "Raise the bot's hand, and lower it again after I answer."
 
 > "Schedule a bot for tomorrow's board meeting on my calendar."
 
 ---
 
-## Full capability list - 19 tools
+## Full capability list - 28 tools
 
 ### Bot lifecycle
 | Tool | What it does |
 |------|---------------|
-| `create_bot` | Sends (or schedules, via `join_at`) a bot to a Zoom / Google Meet / Microsoft Teams meeting. Audio only by default; `record_video` turns video on and records it in speaker view unless `video_layout: "grid_view"` is asked for, and per-participant video stays off unless requested. Configurable: transcription provider + language, `callback_url` for webhooks, video recording, per-participant audio/video streams, MIA conversational agent, signed-in joins (`google_login_domain` / `teams_login_domain`, optional `sign_in_email` / `strict_email`, for domains already registered on your account), authenticated Zoom joins (`zoom_zak_url` / `zoom_obf_url`), custom attributes, retention window, idempotency key (safe retries - a repeat call returns the original bot, never a duplicate). Returns `bot_id` and `transcript_id` (when a provider is set). |
+| `create_bot` | Sends (or schedules, via `join_at`) a bot to a Zoom / Google Meet / Microsoft Teams meeting. Zoom needs no setup: your API key and the meeting link are enough. Audio only by default; `record_video` turns video on and records it in speaker view unless `video_layout: "grid_view"` is asked for (Google Meet and Teams also accept `speaker_view_default` and `grid_view_default`), and per-participant video stays off unless requested. Configurable: transcription provider + language (including Smallest AI: `smallest`, `smallest_streaming`), `callback_url` for webhooks, video recording, per-participant audio/video streams, MIA conversational agent, signed-in joins (`google_login_domain` / `teams_login_domain`, optional `sign_in_email` / `strict_email`, for domains already registered on your account), authenticated Zoom joins (`zoom_zak_url` / `zoom_obf_url`, which need your own Zoom app), `zoom_use_own_app` (`true` always uses your own Zoom app, `false` always joins with no setup), `storage_id` (one of your workspace's storage destinations), `bot_camera_stream_url` (live video into the bot's camera), custom attributes, retention window, idempotency key (safe retries - a repeat call returns the original bot, never a duplicate). Returns `bot_id` and `transcript_id` (when a provider is set). |
 | `list_bots` | Lists every bot on the account (paginated). |
 | `get_bot_status` | Current lifecycle status - one of `Joining`, `InWaitingRoom`, `InMeeting`, `Recording`, `Leaving`, `Stopped`, `NotAllowed`, `Denied`, `Error`, `Done`. |
 | `get_bot_detail` | Full session metadata: platform, timings, status timeline, the canonical `transcript_id`, `caption_file` (for the `meeting_captions` provider), and the original request payload. |
-| `get_bot_summary` | MeetStream's built-in AI meeting summary - no external LLM call needed. |
+| `get_bot_summary` | Deprecated. The MeetStream API has no summary endpoint, so this tool returns an error that points to `get_transcript`. Summarize the transcript instead. |
 | `remove_bot` | Makes the bot leave an active meeting immediately. Recorded data is **kept**. |
+| `get_stop_status` | Progress of a stop request (requested, acknowledged, stopped, force-stopped or failed) without stopping the bot again. |
 | `delete_bot_data` | **Permanently** deletes a bot's audio, video, and transcripts. Requires `confirm: true` - only call this when the user has explicitly asked to delete data. Irreversible. |
 
 ### Transcription
@@ -151,27 +154,33 @@ Ask your client something like *"list my meetstream bots"* - if it returns data 
 |------|---------------|
 | `get_transcript` | Fetches a transcript by `bot_id`. Automatically resolves the `transcript_id` (it is never delivered in webhooks) via `/detail` → `/transcriptions`. Set `wait: true` to poll until it's ready; `raw: true` for unprocessed provider output. Segments come back as `{ speaker, transcript, start_time, end_time }`. |
 | `list_transcriptions` | Lists every transcription run for a bot - provider, status, and presigned download URLs (valid 1h). |
-| `transcribe_audio` | (Re-)transcribes a bot's recorded audio with a chosen provider - useful to retry with a different provider or language after the meeting. |
+| `transcribe_audio` | (Re-)transcribes a bot's recorded audio with a chosen provider (`deepgram`, `assemblyai`, `sarvam`, `meetstream`, `jigsawstack`, `smallest`) - useful to retry with a different provider or language after the meeting. Smallest AI needs your Smallest AI key saved in the dashboard. |
 
 ### Media & meeting data
 | Tool | What it does |
 |------|---------------|
-| `get_media_urls` | Presigned URLs for `audio` (1h), `video` (10min), `audio_streams`/`video_streams` (per-participant - needs `separate_audio_streams`/`separate_video_streams` at creation), or `screenshots`. |
+| `get_media_urls` | Presigned URLs for `audio` (1h), `video` (10min), `audio_streams`/`video_streams` (per-participant - needs `separate_audio_streams`/`separate_video_streams` at creation), or `screenshots` (newest first, each with a 1h download URL). |
 | `get_participants` | Everyone detected in the meeting - display name, full name, status, stream ids. |
 | `get_chats` | In-meeting chat messages captured during the call. |
-| `get_speaker_timeline` | Who spoke and when, as a timeline of speaker segments. |
+| `get_speaker_timeline` | Who spoke and when, as a timeline of speaker segments. A very large timeline comes back as `speaker_timeline_url` (a download link valid for 1 hour, no key needed) with `size_bytes`. |
 
 ### Live meeting interaction
 | Tool | What it does |
 |------|---------------|
 | `send_chat_message` | Posts a chat message into the live meeting through the bot. |
 | `send_image` | Displays an image or GIF as the bot's video frame. `img_url` must be publicly accessible (no base64). |
+| `raise_hand` / `lower_hand` | Raises or lowers the bot's hand with the meeting's own control (Google Meet, Zoom, Teams). The bot must be in the meeting. Returns `hand_raised`, the state read back from the meeting. Safe to repeat. |
+| `pause_recording` / `resume_recording` | Pauses capture (black video, silent audio, no live transcript) while the bot stays in the meeting, then resumes on the same timeline. |
+| `update_live_agent` | Changes a running MIA voice agent mid-call: prompt variables, system prompt or wake words. `wait_for_ack: true` returns the agent's result. |
 
 ### Calendar
 | Tool | What it does |
 |------|---------------|
 | `list_calendar_events` | Upcoming events from a connected Google Calendar. (Connecting a calendar - `POST /calendar/create_calendar` with OAuth credentials - is a one-time setup usually done via the [MeetStream CLI](https://github.com/meetstream-ai/meetstream-cli) or dashboard.) |
 | `schedule_calendar_bot` | Schedules (`action: "schedule"`) or removes (`"unschedule"`) a bot for a specific calendar event. |
+| `list_scheduled_bots` | Bots with a future join time (`join_at` bots and calendar bots). |
+| `reschedule_bot` | Changes the join time of a scheduled bot. |
+| `cancel_scheduled_bot` | Cancels a scheduled bot so it never joins. |
 
 ### Reference
 | Tool | What it does |
@@ -189,6 +198,7 @@ Every tool description and the `webhook_events_guide` bake in **live-verified gr
 - **Streaming-only transcription providers** (`deepgram_streaming`, `assemblyai_streaming`, `jigsawstack_streaming`, `meetstream_streaming`, `meeting_captions`) produce no post-call transcript, so `transcription.processed` never fires. `bot.done` still does. A post-call transcript fetch for them returns `202` indefinitely, so cap your polling.
 - **`transcript_id` is never in a webhook payload** - `get_transcript` resolves it for you automatically instead of making the model guess.
 - Safe defaults everywhere: `automatic_leave` timeouts on every `create_bot` call, and `recording_permission_denied_timeout` floored at 60 (the API rejects lower values with a 400).
+- **Errors keep the API's reason.** A tool error shows the API's `message` text. When the API asks you to wait (for example `429` when a prepaid account creates many bots in a short time), the error ends with `(retry after N s)`.
 
 ## How it works
 
