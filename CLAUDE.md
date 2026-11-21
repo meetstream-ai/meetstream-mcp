@@ -13,10 +13,11 @@ claude mcp add --transport http meetstream https://mcp.meetstream.ai/mcp
 # then /mcp -> Authenticate, sign in at app.meetstream.ai and click Allow
 ```
 
-Separately, the [MeetStream Claude plugin](https://github.com/meetstream-ai/claude-plugin) adds skills for notetakers, sales coaching, calendar automation and scaffolding. It ships **skills only** and does not include the MCP server, so the two are complementary rather than alternatives:
+The [MeetStream Claude plugin](https://github.com/meetstream-ai/claude-plugin) adds skills for notetakers, sales coaching, calendar automation and scaffolding, and it adds this hosted MCP server too:
 
 ```sh
 /plugin marketplace add meetstream-ai/claude-plugin
+/plugin install meetstream@meetstream-ai
 ```
 
 Confirm it is live with `/mcp`, then ask for `list_bots` - a clean response means the key and transport are both good.

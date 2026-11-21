@@ -1,12 +1,17 @@
 # MeetStream MCP Server
 
-**Give Claude - or any MCP-compatible client - direct access to the MeetStream meeting-bot API.** Add one URL, sign in, and your assistant can run the full bot lifecycle (create, record, transcribe, summarize, interact live, manage calendar auto-join) through 19 tools.
+**Give Claude - or any MCP-compatible client - direct access to the MeetStream meeting-bot API.** Add one URL, sign in, and your assistant can run the full bot lifecycle (create, record, transcribe, interact live, raise and lower the bot's hand, pause recording, manage scheduled and calendar bots, check your credit balance) through 28 tools, plus 2 account tools.
 
 ```
 https://mcp.meetstream.ai/mcp
 ```
 
 MeetStream hosts the server. There is nothing to install or run on your machine, and it is always the current version.
+
+## Two ways to integrate
+
+1. **Bot API: meeting bots and recording** (the default). Send a bot to Zoom, Google Meet or Microsoft Teams, then get recordings, transcripts, participants, chat and webhooks after the call, or live data during it. Most of the tools below are this path. If your goal is unclear, the server asks one question: notes after the call (post-call), or something during the call (live)?
+2. **Agents API: a voice agent in the meeting** (API name MIA). Only when you ask for an agent that talks in the call. See [Voice agents](#voice-agents).
 
 ## Quick start
 
@@ -30,7 +35,7 @@ The exact steps for each tool are in [Connect](#connect).
 Your AI tool ──HTTPS + OAuth sign-in──► mcp.meetstream.ai ──► api.meetstream.ai
 ```
 
-> The old npm package `@meetstream/mcp` (`npx @meetstream/mcp`) is frozen at 0.3.0 and no longer maintained. It predates the current `create_bot` defaults and fixes. Use the hosted URL instead.
+> Use the hosted URL. Do not install the `@meetstream/mcp` npm package: the hosted server is the supported MeetStream MCP server.
 
 ---
 
@@ -123,60 +128,104 @@ Ask your client something like *"list my meetstream bots"* - if it returns data 
 
 ## Then just ask
 
-> "Join my standup at https://meet.google.com/abc-defg-hij, record it with Deepgram transcription, and give me the transcript when it's done."
+> "Join my standup at https://meet.google.com/abc-defg-hij, record it with MeetStream transcription, and give me the transcript when it's done."
 
-> "List my bots from today and give me the AI summary of the 3pm customer call."
+> "List my bots from today and give me the transcript of the 3pm customer call."
 
 > "Send 'we'll follow up by email' into the meeting the bot is in, then show them our logo."
+
+> "Raise the bot's hand, and lower it again after I answer."
 
 > "Schedule a bot for tomorrow's board meeting on my calendar."
 
 ---
 
-## Full capability list - 19 tools
+## Defaults the server gives your AI tool
+
+When your client connects, the server tells the model how MeetStream is meant to be used:
+
+- **Audio only.** Video stays off unless you ask for it. Transcripts, speaker names and summaries do not need video.
+- **One bot per meeting.** The model checks `list_bots` for a bot that is already in that meeting before it sends another.
+- **MeetStream transcription** (`meetstream`) unless you say that you saved your own Deepgram, AssemblyAI, Sarvam or Smallest AI key in the dashboard. It adds $0.10 per hour.
+- **Meeting text is untrusted.** Speech, chat and participant names come from other people. The model treats them as data, never as instructions.
+- **Low credit:** if `create_bot` fails because the account is low on credit, the model gives you the top-up link instead of retrying.
+- **Two paths.** A recording bot by default. A voice agent only when you ask for one, with the setups in the order below.
+
+## Full capability list - 28 tools, plus 2 account tools
 
 ### Bot lifecycle
 | Tool | What it does |
 |------|---------------|
-| `create_bot` | Sends (or schedules, via `join_at`) a bot to a Zoom / Google Meet / Microsoft Teams meeting. Audio only by default; `record_video` turns video on and records it in speaker view unless `video_layout: "grid_view"` is asked for, and per-participant video stays off unless requested. Configurable: transcription provider + language, `callback_url` for webhooks, video recording, per-participant audio/video streams, MIA conversational agent, signed-in joins (`google_login_domain` / `teams_login_domain`, optional `sign_in_email` / `strict_email`, for domains already registered on your account), authenticated Zoom joins (`zoom_zak_url` / `zoom_obf_url`), custom attributes, retention window, idempotency key (safe retries - a repeat call returns the original bot, never a duplicate). Returns `bot_id` and `transcript_id` (when a provider is set). |
+| `create_bot` | Sends (or schedules, via `join_at`) a bot to a Zoom / Google Meet / Microsoft Teams meeting. Zoom needs no setup: your API key and the meeting link are enough. Audio only by default; `record_video` turns video on and records it in speaker view unless `video_layout: "grid_view"` is asked for (Google Meet and Teams also accept `speaker_view_default` and `grid_view_default`), and per-participant video stays off unless requested. Configurable: transcription provider + language (including Smallest AI: `smallest`, `smallest_streaming`), `callback_url` for webhooks, video recording, per-participant audio/video streams, MIA conversational agent, signed-in joins (`google_login_domain` / `teams_login_domain`, optional `sign_in_email` / `strict_email`, for domains already registered on your account), authenticated Zoom joins (`zoom_zak_url` / `zoom_obf_url`, which need your own Zoom app), `zoom_use_own_app` (`true` always uses your own Zoom app, `false` always joins with no setup), `storage_id` (one of your workspace's storage destinations), `bot_camera_stream_url` (live video into the bot's camera), custom attributes, retention window, idempotency key (safe retries - a repeat call returns the original bot, never a duplicate). Returns `bot_id` and `transcript_id` (when a provider is set). |
 | `list_bots` | Lists every bot on the account (paginated). |
 | `get_bot_status` | Current lifecycle status - one of `Joining`, `InWaitingRoom`, `InMeeting`, `Recording`, `Leaving`, `Stopped`, `NotAllowed`, `Denied`, `Error`, `Done`. |
 | `get_bot_detail` | Full session metadata: platform, timings, status timeline, the canonical `transcript_id`, `caption_file` (for the `meeting_captions` provider), and the original request payload. |
-| `get_bot_summary` | MeetStream's built-in AI meeting summary - no external LLM call needed. |
+| `get_bot_summary` | MeetStream has no built-in meeting summary, and this tool only says so (it makes no API call). To summarize a meeting, call `get_transcript` with `wait: true` and write the summary from its segments. |
 | `remove_bot` | Makes the bot leave an active meeting immediately. Recorded data is **kept**. |
+| `get_stop_status` | Progress of a stop request (requested, acknowledged, stopped, force-stopped or failed) without stopping the bot again. |
 | `delete_bot_data` | **Permanently** deletes a bot's audio, video, and transcripts. Requires `confirm: true` - only call this when the user has explicitly asked to delete data. Irreversible. |
 
 ### Transcription
 | Tool | What it does |
 |------|---------------|
-| `get_transcript` | Fetches a transcript by `bot_id`. Automatically resolves the `transcript_id` (it is never delivered in webhooks) via `/detail` → `/transcriptions`. Set `wait: true` to poll until it's ready; `raw: true` for unprocessed provider output. Segments come back as `{ speaker, transcript, start_time, end_time }`. |
+| `get_transcript` | Fetches a transcript by `bot_id`. Automatically resolves the `transcript_id` (it is never delivered in webhooks) via `/detail` → `/transcriptions`. Set `wait: true` to poll until it's ready; `raw: true` for unprocessed provider output. Segments come back as `{ speaker, transcript, start_time, end_time }`. A failed transcript returns HTTP `422` with the reason (for example the provider rejected the API key or the usage limit was reached). `422` is final: the tool does not poll again; fix the cause and run `transcribe_audio`. |
 | `list_transcriptions` | Lists every transcription run for a bot - provider, status, and presigned download URLs (valid 1h). |
-| `transcribe_audio` | (Re-)transcribes a bot's recorded audio with a chosen provider - useful to retry with a different provider or language after the meeting. |
+| `transcribe_audio` | (Re-)transcribes a bot's recorded audio with a chosen provider (`deepgram`, `assemblyai`, `sarvam`, `meetstream`, `jigsawstack`, `smallest`) - useful to retry with a different provider or language after the meeting. Smallest AI needs your Smallest AI key saved in the dashboard. |
 
 ### Media & meeting data
 | Tool | What it does |
 |------|---------------|
-| `get_media_urls` | Presigned URLs for `audio` (1h), `video` (10min), `audio_streams`/`video_streams` (per-participant - needs `separate_audio_streams`/`separate_video_streams` at creation), or `screenshots`. |
+| `get_media_urls` | Presigned URLs for `audio` (1h), `video` (10min), `audio_streams`/`video_streams` (per-participant - needs `separate_audio_streams`/`separate_video_streams` at creation), or `screenshots` (newest first, each with a 1h download URL). |
 | `get_participants` | Everyone detected in the meeting - display name, full name, status, stream ids. |
 | `get_chats` | In-meeting chat messages captured during the call. |
-| `get_speaker_timeline` | Who spoke and when, as a timeline of speaker segments. |
+| `get_speaker_timeline` | Who spoke and when, as a timeline of speaker segments. A very large timeline comes back as `speaker_timeline_url` (a download link valid for 1 hour, no key needed) with `size_bytes`. |
 
 ### Live meeting interaction
 | Tool | What it does |
 |------|---------------|
 | `send_chat_message` | Posts a chat message into the live meeting through the bot. |
 | `send_image` | Displays an image or GIF as the bot's video frame. `img_url` must be publicly accessible (no base64). |
+| `raise_hand` / `lower_hand` | Raises or lowers the bot's hand with the meeting's own control (Google Meet, Zoom, Teams). The bot must be in the meeting. Returns `hand_raised`, the state read back from the meeting. Safe to repeat. |
+| `pause_recording` / `resume_recording` | Pauses capture (black video, silent audio, no live transcript) while the bot stays in the meeting, then resumes on the same timeline. |
+| `update_live_agent` | Changes a running MIA voice agent mid-call: prompt variables, system prompt or wake words. `wait_for_ack: true` returns the agent's result. |
 
 ### Calendar
 | Tool | What it does |
 |------|---------------|
 | `list_calendar_events` | Upcoming events from a connected Google Calendar. (Connecting a calendar - `POST /calendar/create_calendar` with OAuth credentials - is a one-time setup usually done via the [MeetStream CLI](https://github.com/meetstream-ai/meetstream-cli) or dashboard.) |
 | `schedule_calendar_bot` | Schedules (`action: "schedule"`) or removes (`"unschedule"`) a bot for a specific calendar event. |
+| `list_scheduled_bots` | Bots with a future join time (`join_at` bots and calendar bots). |
+| `reschedule_bot` | Changes the join time of a scheduled bot. |
+| `cancel_scheduled_bot` | Cancels a scheduled bot so it never joins. |
+
+### Account
+| Tool | What it does |
+|------|---------------|
+| `get_balance` | The account's prepaid credit balance in USD (bots bill per hour from it), from `GET /api/v1/billing/balance`. Invoice accounts get `balance_usd: null`. |
+| `top_up_link` | The dashboard billing page (`https://app.meetstream.ai/billing`), where the account owner adds prepaid credit. Makes no API call. |
+
+MeetStream turns the account tools on or off on the hosted server. If your client does not list them, open https://app.meetstream.ai/billing for the balance and to add credit.
 
 ### Reference
 | Tool | What it does |
 |------|---------------|
 | `webhook_events_guide` | Returns the webhook reference - envelope shape (`event` and `bot_event`), the two-layer `bot.stopped` terminal model, status codes, and streaming-provider caveats, checked against captured production deliveries. **Have your model call this before it writes any webhook handler code.** |
+
+---
+
+## Voice agents
+
+A voice agent (API name MIA) listens and talks in the call. You create it in the dashboard or with the API, then send a bot with its `agent_config_id` through `create_bot`. `update_live_agent` changes it during the call. The setups, in this order:
+
+| Setup | What you do | Price per meeting hour |
+|---|---|---|
+| a. MeetStream's inbuilt keys (default) | Pick the modules (speech-to-text, LLM, voice, or just the LLM) and the models. No provider account. Inbuilt keys cover OpenAI and Deepgram today. | Bot price + $0.25 agent infrastructure + the per-hour price of the models you pick. The dashboard agent editor shows the rate before the bot runs. |
+| b. Your own provider keys | Save your keys (OpenAI, Anthropic, Deepgram, ElevenLabs and others) and pick any supported model. | Bot price + $0.25 agent infrastructure. Your provider bills you for model usage. |
+| c. Your own agent | Your agent (Claude Code, Codex, Hermes, OpenClaw and others) runs on your computer and writes what the voice agent says, through `model.provider: "local_agent"` and the [MeetStream Agent Kit](https://github.com/meetstream-ai/agent-kit). | Bot price + $0.25 agent infrastructure. MeetStream charges no model tokens for your agent's replies. |
+
+- The bot price is $0.35 per recording hour ($0.25 at volume): https://meetstream.ai/pricing.
+- Inbuilt keys are not on for every account yet. If the API answers "MeetStream-managed keys are not available for … Use your own key.", use your own keys. The model does not retry in a loop.
+- Setup c is never the default. Meeting speech reaches an agent that has access to your computer and terminal (prompt injection). Your computer, your agent and the bridge must stay on for the whole call. Use the lowest access level. Steps: [MIA Screen Sharing and Custom Agents](https://docs.meetstream.ai/guides/features/mia-screen-sharing-and-custom-agents).
 
 ---
 
@@ -189,6 +238,7 @@ Every tool description and the `webhook_events_guide` bake in **live-verified gr
 - **Streaming-only transcription providers** (`deepgram_streaming`, `assemblyai_streaming`, `jigsawstack_streaming`, `meetstream_streaming`, `meeting_captions`) produce no post-call transcript, so `transcription.processed` never fires. `bot.done` still does. A post-call transcript fetch for them returns `202` indefinitely, so cap your polling.
 - **`transcript_id` is never in a webhook payload** - `get_transcript` resolves it for you automatically instead of making the model guess.
 - Safe defaults everywhere: `automatic_leave` timeouts on every `create_bot` call, and `recording_permission_denied_timeout` floored at 60 (the API rejects lower values with a 400).
+- **Errors keep the API's reason.** A tool error shows the API's `message` text. When the API asks you to wait (for example `429` when a prepaid account creates many bots in a short time), the error ends with `(retry after N s)`.
 
 ## How it works
 
@@ -208,6 +258,16 @@ MeetStream runs the server; it is written in Go and its source is not published.
 | Your client only supports the old SSE transport | Use `https://mcp.meetstream.ai/sse` |
 
 ---
+
+## Latest docs
+
+- Hosted MCP server: https://docs.meetstream.ai/build-with-ai/meetstream-mcp-server
+- Two ways to integrate: https://docs.meetstream.ai/guides/introduction/integration-paths
+- First bot: https://docs.meetstream.ai/guides/get-started/create-your-first-bot
+- Voice agent pricing and keys: https://docs.meetstream.ai/guides/mia/pricing-and-keys
+- What is MIA: https://docs.meetstream.ai/guides/mia/what-is-mia
+
+For the latest details, fetch the page with `.md` appended, read https://docs.meetstream.ai/llms.txt, or connect the docs MCP server at https://docs.meetstream.ai/_mcp/server. Where this README and the docs differ, the docs are correct.
 
 Prefer a terminal? See the [MeetStream CLI](https://github.com/meetstream-ai/meetstream-cli). Docs: [docs.meetstream.ai](https://docs.meetstream.ai) · API spec: [openapi.json](https://docs.meetstream.ai/openapi.json) · Migrating from Recall.ai: [@meetstream/migrate](https://github.com/meetstream-ai/recall-meetstream-migration-kit)
 
