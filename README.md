@@ -224,7 +224,7 @@ Use flow 2 when you want to run the agent yourself, and flow 3 when you want Mee
 |---|---|---|
 | 2a. Bridge server (your own stack) | Run a bridge server. `create_bot` with `live_audio_websocket_url` (for example `wss://your-host/bridge/audio`, live meeting audio in) and `socket_connection_url` (for example `wss://your-host/bridge`, send audio, chat, images and interrupt back). Use any speech-to-text, LLM and voice models, local or hosted. Starter: [MeetStream Bridge](https://github.com/meetstream-ai/meetstream-agent) (FastAPI, OpenAI Realtime by default; swap in local models). | Bot price only. MeetStream charges no agent infrastructure and no model tokens. |
 | 2b. Your own agent as the brain | Your agent (Claude Code, Codex, Hermes, OpenClaw and others) writes what the voice agent says, through `model.provider: "local_agent"` and the [MeetStream Agent Kit](https://github.com/meetstream-ai/agent-kit). Send the bot with the agent's `agent_config_id`. | Bot price + $0.25 agent infrastructure. No model tokens. |
-| 3a. Hosted by MeetStream, inbuilt keys | Create a voice agent in the dashboard or with the API and pick the modules and models. Inbuilt keys cover OpenAI and Deepgram today (`"key_source": "meetstream"`, pipeline mode). Send the bot with its `agent_config_id`. | Bot price + $0.25 agent infrastructure + the per-hour price of the models you pick. The dashboard agent editor shows the rate before the bot runs. |
+| 3a. Hosted by MeetStream, inbuilt keys | Create a voice agent in the dashboard or with the API and pick the modules and models. Inbuilt keys (`"key_source": "meetstream"`): pipeline mode uses OpenAI and Deepgram; realtime mode uses OpenAI only. Any other provider: bring your own key. Send the bot with its `agent_config_id`. | Bot price + $0.25 agent infrastructure + the per-hour price of the models you pick. The dashboard agent editor shows the rate before the bot runs. |
 | 3b. Hosted by MeetStream, your own keys | Save your keys (OpenAI, Anthropic, Deepgram, ElevenLabs and others) and pick any supported model. | Bot price + $0.25 agent infrastructure. Your provider bills you for model usage. |
 
 - The bot price is $0.35 per recording hour ($0.25 at volume): https://meetstream.ai/pricing.
@@ -232,15 +232,6 @@ Use flow 2 when you want to run the agent yourself, and flow 3 when you want Mee
 - Inbuilt keys are not on for every account yet. If the API answers "MeetStream-managed keys are not available for … Use your own key.", use your own keys (3b). The model does not retry in a loop.
 - `update_live_agent` changes a running MIA voice agent during the call.
 - Docs: [Bridge server architecture](https://docs.meetstream.ai/guides/websockets/bridge-server-architecture), [real-time audio streaming](https://docs.meetstream.ai/guides/websockets/real-time-audio-streaming), [meeting control patterns](https://docs.meetstream.ai/guides/websockets/meeting-control-patterns), [voice agent pricing and keys](https://docs.meetstream.ai/guides/mia/pricing-and-keys).
-
----|---|---|
-| a. MeetStream's inbuilt keys (default) | Pick the modules (speech-to-text, LLM, voice, or just the LLM) and the models. No provider account. Inbuilt keys cover OpenAI and Deepgram today. | Bot price + $0.25 agent infrastructure + the per-hour price of the models you pick. The dashboard agent editor shows the rate before the bot runs. |
-| b. Your own provider keys | Save your keys (OpenAI, Anthropic, Deepgram, ElevenLabs and others) and pick any supported model. | Bot price + $0.25 agent infrastructure. Your provider bills you for model usage. |
-| c. Your own agent | Your agent (Claude Code, Codex, Hermes, OpenClaw and others) runs on your computer and writes what the voice agent says, through `model.provider: "local_agent"` and the [MeetStream Agent Kit](https://github.com/meetstream-ai/agent-kit). | Bot price + $0.25 agent infrastructure. MeetStream charges no model tokens for your agent's replies. |
-
-- The bot price is $0.35 per recording hour ($0.25 at volume): https://meetstream.ai/pricing.
-- Inbuilt keys are not on for every account yet. If the API answers "MeetStream-managed keys are not available for … Use your own key.", use your own keys. The model does not retry in a loop.
-- Setup c is never the default. Meeting speech reaches an agent that has access to your computer and terminal (prompt injection). Your computer, your agent and the bridge must stay on for the whole call. Use the lowest access level. Steps: [MIA Screen Sharing and Custom Agents](https://docs.meetstream.ai/guides/features/mia-screen-sharing-and-custom-agents).
 
 ---
 
