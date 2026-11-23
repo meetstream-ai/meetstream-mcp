@@ -139,7 +139,7 @@ These are live-verified. Do not "fix" code that follows them.
 ## Related
 
 - Docs: https://docs.meetstream.ai · MCP setup: https://docs.meetstream.ai/build-with-ai/meetstream-mcp-server
-- CLI: [`@meetstream/cli`](https://github.com/meetstream-ai/meetstream-cli)
+- CLI: [`meetstream`](https://github.com/meetstream-ai/cli) (`npx -y @meetstream/cli`, `pipx install meetstream-cli`, `brew install meetstream-ai/tap/meetstream`)
 - Claude Code plugin: https://github.com/meetstream-ai/claude-plugin
 - Cursor plugin: https://github.com/meetstream-ai/meetstream-cursor-plugin
 - Runnable examples: https://github.com/meetstream-ai/labs
